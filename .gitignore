@@ -82,3 +82,5 @@ CodeCoverage/
 TestResult.xml
 nunit-*.xml
 >>>>>>> 0cd9357d6d00816c446d3e2d6b9f2e7f18859133
+
+.fake

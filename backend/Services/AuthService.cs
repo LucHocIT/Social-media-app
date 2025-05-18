@@ -12,11 +12,24 @@ public class AuthService : IAuthService
 {
     private readonly SocialMediaDbContext _context;
     private readonly IConfiguration _configuration;
+    private readonly IEmailVerificationService _emailVerificationService;
+    private readonly ILogger<AuthService> _logger;
 
-    public AuthService(SocialMediaDbContext context, IConfiguration configuration)
+    public AuthService(
+        SocialMediaDbContext context, 
+        IConfiguration configuration,
+        IEmailVerificationService emailVerificationService,
+        ILogger<AuthService> logger)
     {
         _context = context;
         _configuration = configuration;
+        _emailVerificationService = emailVerificationService;
+        _logger = logger;
+    }
+
+    public async Task<bool> EmailExistsAsync(string email)
+    {
+        return await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower());
     }
 
     public async Task<AuthResponseDTO> RegisterAsync(RegisterUserDTO registerDto)
@@ -27,6 +40,22 @@ public class AuthService : IAuthService
 
         if (await _context.Users.AnyAsync(u => u.Email == registerDto.Email))
             throw new Exception("Email đã tồn tại");
+
+        // Verify if the email is valid and exists
+        var emailVerification = await _emailVerificationService.VerifyEmailAsync(registerDto.Email);
+        
+        if (!emailVerification.IsValid)
+        {
+            _logger.LogWarning("Invalid email format: {Email}", registerDto.Email);
+            throw new Exception("Email không hợp lệ, vui lòng kiểm tra lại");
+        }
+
+        if (!emailVerification.Exists)
+        {
+            _logger.LogWarning("Email does not exist or is not deliverable: {Email}, Message: {Message}", 
+                registerDto.Email, emailVerification.Message);
+            throw new Exception("Email không tồn tại hoặc không thể gửi thư đến địa chỉ này");
+        }
 
         // Tạo người dùng mới
         var newUser = new User

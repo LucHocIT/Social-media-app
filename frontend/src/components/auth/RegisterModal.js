@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../services/AuthContext';
+import { authApi } from '../../services/api';
+import { getPasswordStrength, getPasswordStrengthClass, getPasswordStrengthText } from '../../utils/validation';
+import '../../../src/assets/css/auth-animations.css';
 
 const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
   const [formData, setFormData] = useState({
@@ -14,38 +17,115 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [modalClass, setModalClass] = useState('auth-modal');
+  const [overlayClass, setOverlayClass] = useState('auth-modal-overlay');
+  const [isClosing, setIsClosing] = useState(false);
+  const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
+  const [emailValid, setEmailValid] = useState(null);
+  const [passwordStrength, setPasswordStrength] = useState(0);
   const { register } = useAuth();
 
   useEffect(() => {
     if (isOpen) {
-      setModalClass('auth-modal show');
-      document.body.style.overflow = 'hidden';
-    } else {
+      setIsClosing(false);
       setModalClass('auth-modal');
+      setOverlayClass('auth-modal-overlay');
+      document.body.style.overflow = 'hidden';
+    } else if (!isClosing) {
+      // Do nothing if not open and not closing
+      return;
+    } else {
       // Wait for animation to complete before removing
       const timer = setTimeout(() => {
         document.body.style.overflow = 'auto';
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [isOpen]);
-
-  const handleChange = (e) => {
+  }, [isOpen, isClosing]);  const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
-  };
-
-  const validateForm = () => {
+    
+    // Reset email validation when email changes
+    if (name === 'email') {
+      setEmailValid(null);
+      
+      // Only trigger verification if email has some content and appears valid
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (value && emailRegex.test(value)) {
+        // Debounce the email verification
+        let debounceTimer;
+        clearTimeout(debounceTimer);
+        
+        // Store the current value for comparison in the async handler
+        const currentEmail = value;
+        
+        debounceTimer = setTimeout(async () => {
+          // Only proceed if the email hasn't changed during the debounce period
+          if (currentEmail === formData.email) {              try {
+              setIsVerifyingEmail(true);
+              console.log("Verifying email:", currentEmail);
+              const response = await authApi.verifyEmail(currentEmail);
+              console.log("Verification response:", response);
+              // Only update if this is still the current email
+              if (currentEmail === formData.email) {
+                setEmailValid(true);
+              }
+            } catch (err) {
+              console.error('Email verification error:', err);
+              // Only update if this is still the current email
+              if (currentEmail === formData.email) {
+                // If it's a network error or any other error, we'll now consider the email valid
+                // to allow the user to proceed with registration
+                if (err.code === 'ERR_NETWORK' || err.code === 'ERR_CONNECTION_REFUSED' || !err.response) {
+                  console.log("Network error detected, allowing registration");
+                  setEmailValid(true);
+                } else if (err.response?.status === 400) {
+                  // If the server specifically says the email is invalid or already used
+                  setEmailValid(false);
+                } else {
+                  // For any other error, allow registration
+                  console.log("Other error detected, allowing registration");
+                  setEmailValid(true);
+                }
+              }
+            } finally {
+              if (currentEmail === formData.email) {
+                setIsVerifyingEmail(false);
+              }
+            }
+          }
+        }, 800);
+      }
+    }
+    
+    // Update password strength when password changes
+    if (name === 'password') {
+      setPasswordStrength(getPasswordStrength(value));
+    }
+  };  const validateForm = () => {
+    let errors = [];
+    
     if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
-      return false;
+      errors.push('Passwords do not match');
     }
     
     if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters long');
+      errors.push('Password must be at least 6 characters long');
+    }
+    
+    // Validate email format using regex instead of relying only on emailValid
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email)) {
+      errors.push('Please enter a valid email address format');
+    } else if (emailValid === false) {
+      // Only check emailValid if it's explicitly false
+      errors.push('Please use a valid email address that is not already registered');
+    }
+    
+    if (errors.length > 0) {
+      setError(errors.join('. '));
       return false;
     }
     
@@ -84,9 +164,10 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
       setLoading(false);
     }
   };
-
   const handleClose = () => {
-    setModalClass('auth-modal');
+    setIsClosing(true);
+    setModalClass('auth-modal closing');
+    setOverlayClass('auth-modal-overlay closing');
     setTimeout(() => {
       onClose();
       setFormData({
@@ -99,25 +180,40 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
       });
       setError('');
       setSuccess('');
+      setIsClosing(false);
+      setEmailValid(null);
     }, 300);
   };
-
   const handleSwitchToLogin = (e) => {
     e.preventDefault();
-    handleClose();
+    setIsClosing(true);
+    setModalClass('auth-modal closing');
+    setOverlayClass('auth-modal-overlay closing');
+    
     setTimeout(() => {
       onSwitchToLogin();
+      setIsClosing(false);
+      setFormData({
+        username: '',
+        email: '',
+        password: '',
+        confirmPassword: '',
+        firstName: '',
+        lastName: ''
+      });
+      setError('');
+      setSuccess('');
+      setEmailValid(null);
     }, 300);
   };
-
   return (
     <>
-      {isOpen && (
-        <div className="auth-modal-overlay" onClick={handleClose}>
+      {(isOpen || isClosing) && (
+        <div className={overlayClass} onClick={handleClose}>
           <div className={modalClass} onClick={e => e.stopPropagation()}>
             <div className="auth-modal-header">
               <h2 className="auth-modal-title">
-                <i className="bi bi-person-plus text-primary me-2"></i> Create Account
+                <i className="bi bi-person-plus"></i> Create Account
               </h2>
               <button className="btn-close" onClick={handleClose}></button>
             </div>
@@ -139,54 +235,52 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
               
               <form onSubmit={handleSubmit}>
                 <div className="row">
-                  <div className="col-md-6 mb-3">
-                    <label htmlFor="firstName" className="form-label">First Name</label>
-                    <div className="input-group">
-                      <span className="input-group-text bg-light">
-                        <i className="bi bi-person text-primary"></i>
-                      </span>
-                      <input
-                        type="text"
-                        className="form-control"
-                        id="firstName"
-                        name="firstName"
-                        placeholder="First name"
-                        value={formData.firstName}
-                        onChange={handleChange}
-                        required
-                      />
+                  <div className="col-md-6">
+                    <div className="auth-form-group">
+                      <label htmlFor="firstName" className="auth-form-label">First Name</label>
+                      <div className="auth-input-group">
+                        <i className="bi bi-person auth-input-icon"></i>
+                        <input
+                          type="text"
+                          className="auth-form-input"
+                          id="firstName"
+                          name="firstName"
+                          placeholder="First name"
+                          value={formData.firstName}
+                          onChange={handleChange}
+                          required
+                        />
+                      </div>
                     </div>
                   </div>
                   
-                  <div className="col-md-6 mb-3">
-                    <label htmlFor="lastName" className="form-label">Last Name</label>
-                    <div className="input-group">
-                      <span className="input-group-text bg-light">
-                        <i className="bi bi-person text-primary"></i>
-                      </span>
-                      <input
-                        type="text"
-                        className="form-control"
-                        id="lastName"
-                        name="lastName"
-                        placeholder="Last name"
-                        value={formData.lastName}
-                        onChange={handleChange}
-                        required
-                      />
+                  <div className="col-md-6">
+                    <div className="auth-form-group">
+                      <label htmlFor="lastName" className="auth-form-label">Last Name</label>
+                      <div className="auth-input-group">
+                        <i className="bi bi-person auth-input-icon"></i>
+                        <input
+                          type="text"
+                          className="auth-form-input"
+                          id="lastName"
+                          name="lastName"
+                          placeholder="Last name"
+                          value={formData.lastName}
+                          onChange={handleChange}
+                          required
+                        />
+                      </div>
                     </div>
                   </div>
                 </div>
                 
-                <div className="mb-3">
-                  <label htmlFor="username" className="form-label">Username</label>
-                  <div className="input-group">
-                    <span className="input-group-text bg-light">
-                      <i className="bi bi-person-badge text-primary"></i>
-                    </span>
+                <div className="auth-form-group">
+                  <label htmlFor="username" className="auth-form-label">Username</label>
+                  <div className="auth-input-group">
+                    <i className="bi bi-person-badge auth-input-icon"></i>
                     <input
                       type="text"
-                      className="form-control"
+                      className="auth-form-input"
                       id="username"
                       name="username"
                       placeholder="Choose a username"
@@ -197,15 +291,13 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
                   </div>
                 </div>
                 
-                <div className="mb-3">
-                  <label htmlFor="email" className="form-label">Email</label>
-                  <div className="input-group">
-                    <span className="input-group-text bg-light">
-                      <i className="bi bi-envelope text-primary"></i>
-                    </span>
+                <div className="auth-form-group">
+                  <label htmlFor="email" className="auth-form-label">Email</label>
+                  <div className="auth-input-group">
+                    <i className="bi bi-envelope auth-input-icon"></i>
                     <input
                       type="email"
-                      className="form-control"
+                      className={`auth-form-input ${emailValid === true ? 'is-valid' : ''} ${emailValid === false ? 'is-invalid' : ''}`}
                       id="email"
                       name="email"
                       placeholder="Your email address"
@@ -213,18 +305,37 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
                       onChange={handleChange}
                       required
                     />
+                    
+                    {/* Email verification indicator */}
+                    {formData.email && (
+                      <div className="email-verification-indicator">
+                        {isVerifyingEmail && <i className="bi bi-arrow-repeat verification-loading"></i>}
+                        {!isVerifyingEmail && emailValid === true && <i className="bi bi-check-circle-fill verification-valid"></i>}
+                        {!isVerifyingEmail && emailValid === false && <i className="bi bi-x-circle-fill verification-invalid"></i>}
+                      </div>
+                    )}
+                    
+                    {/* Email verification tooltip */}
+                    <div className="verification-tooltip">
+                      {isVerifyingEmail && "Verifying email..."}
+                      {!isVerifyingEmail && emailValid === true && "Email is valid and not already in use."}
+                      {!isVerifyingEmail && emailValid === false && "Email is invalid or already in use."}
+                    </div>
                   </div>
+                  
+                  {!isVerifyingEmail && emailValid === false && (
+                    <div className="auth-form-error">
+                      Please enter a valid email that is not already registered.
+                    </div>
+                  )}
                 </div>
-                
-                <div className="mb-3">
-                  <label htmlFor="password" className="form-label">Password</label>
-                  <div className="input-group">
-                    <span className="input-group-text bg-light">
-                      <i className="bi bi-lock text-primary"></i>
-                    </span>
+                  <div className="auth-form-group">
+                  <label htmlFor="password" className="auth-form-label">Password</label>
+                  <div className="auth-input-group">
+                    <i className="bi bi-lock auth-input-icon"></i>
                     <input
                       type="password"
-                      className="form-control"
+                      className="auth-form-input"
                       id="password"
                       name="password"
                       placeholder="Create a strong password"
@@ -233,17 +344,40 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
                       required
                     />
                   </div>
+                  {formData.password && formData.password.length < 6 && (
+                    <div className="auth-form-error">
+                      Password must be at least 6 characters long.
+                    </div>
+                  )}
+                  
+                  {formData.password && (
+                    <div className="mt-2">
+                      <div className="password-strength-meter">
+                        <div className="password-strength-bg">
+                          <div 
+                            className={`password-strength-fill ${getPasswordStrengthClass(passwordStrength)}`}
+                            style={{ width: `${(passwordStrength / 4) * 100}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      <small className="text-muted">
+                        Password strength: <span className="fw-medium">{getPasswordStrengthText(passwordStrength)}</span>
+                      </small>
+                    </div>
+                  )}
                 </div>
                 
-                <div className="mb-4">
-                  <label htmlFor="confirmPassword" className="form-label">Confirm Password</label>
-                  <div className="input-group">
-                    <span className="input-group-text bg-light">
-                      <i className="bi bi-shield-lock text-primary"></i>
-                    </span>
+                <div className="auth-form-group">
+                  <label htmlFor="confirmPassword" className="auth-form-label">Confirm Password</label>
+                  <div className="auth-input-group">
+                    <i className="bi bi-shield-lock auth-input-icon"></i>
                     <input
                       type="password"
-                      className="form-control"
+                      className={`auth-form-input ${
+                        formData.confirmPassword && formData.password === formData.confirmPassword 
+                        ? 'is-valid' 
+                        : formData.confirmPassword ? 'is-invalid' : ''
+                      }`}
                       id="confirmPassword"
                       name="confirmPassword"
                       placeholder="Confirm your password"
@@ -251,33 +385,60 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
                       onChange={handleChange}
                       required
                     />
+                    
+                    {formData.confirmPassword && formData.password === formData.confirmPassword && (
+                      <div className="auth-input-feedback valid">
+                        <i className="bi bi-check-circle-fill"></i>
+                      </div>
+                    )}
+                    
+                    {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                      <div className="auth-input-feedback invalid">
+                        <i className="bi bi-x-circle-fill"></i>
+                      </div>
+                    )}
                   </div>
+                  
+                  {formData.confirmPassword && formData.password !== formData.confirmPassword && (
+                    <div className="auth-form-error">
+                      Passwords do not match.
+                    </div>
+                  )}
                 </div>
                 
-                <button 
+                <div className="auth-form-group">
+                  <label className="auth-form-label">Password Strength</label>
+                  <div className="password-strength-meter">
+                    <div className={`password-strength-bar ${getPasswordStrengthClass(passwordStrength)}`} style={{ width: `${passwordStrength}%` }}></div>
+                  </div>
+                  <div className="password-strength-text">
+                    {formData.password && `Strength: ${getPasswordStrengthText(passwordStrength)}`}
+                  </div>
+                </div>
+                  <button 
                   type="submit" 
-                  className="btn btn-primary btn-lg w-100 mb-3" 
-                  disabled={loading}
+                  className="auth-submit-btn mb-3" 
+                  disabled={loading || emailValid === false || (formData.email && emailValid === null && isVerifyingEmail)}
                 >
                   {loading ? (
                     <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                      Registering...
+                      <span className="spinner-border spinner-border-sm spinner me-2" role="status" aria-hidden="true"></span>
+                      Creating Account...
                     </>
                   ) : (
                     <>Create Account</>
                   )}
                 </button>
               </form>
-              
-              <div className="text-center mt-4">
-                <p className="text-muted">
-                  Already have an account?{' '}
-                  <a href="#" className="text-primary fw-bold" onClick={handleSwitchToLogin}>
-                    Login
-                  </a>
-                </p>
-              </div>
+            </div>
+            
+            <div className="auth-modal-footer">
+              <p className="mb-0">
+                Already have an account?{' '}
+                <a href="#" className="auth-switch-link" onClick={handleSwitchToLogin}>
+                  Sign in
+                </a>
+              </p>
             </div>
           </div>
         </div>

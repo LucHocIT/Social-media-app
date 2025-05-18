@@ -23,7 +23,8 @@ export const authApi = {
   register: (userData) => api.post('/auth/register', userData),
   login: (credentials) => api.post('/auth/login', credentials),
   logout: () => api.post('/auth/logout'),
-  getCurrentUser: () => api.get('/users/me')
+  getCurrentUser: () => api.get('/users/me'),
+  verifyEmail: (email) => api.post('/auth/verifyemail', { email })
 };
 
 export const userApi = {

@@ -11,11 +11,13 @@ public class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
     private readonly ILogger<AuthController> _logger;
+    private readonly IEmailVerificationService _emailVerificationService;
 
-    public AuthController(IAuthService authService, ILogger<AuthController> logger)
+    public AuthController(IAuthService authService, ILogger<AuthController> logger, IEmailVerificationService emailVerificationService)
     {
         _authService = authService;
         _logger = logger;
+        _emailVerificationService = emailVerificationService;
     }
 
     [HttpPost("register")]
@@ -45,6 +47,44 @@ public class AuthController : ControllerBase
         {
             _logger.LogError(ex, "Error during login");
             return BadRequest(new { message = ex.Message });
+        }
+    }
+    
+    [HttpPost("verifyemail")]
+    public async Task<ActionResult> VerifyEmail([FromBody] VerifyEmailDTO verifyEmailDto)
+    {
+        try
+        {
+            _logger.LogInformation("Email verification requested for: {Email}", verifyEmailDto.Email);
+            
+            // Check if email already exists
+            if (await _authService.EmailExistsAsync(verifyEmailDto.Email))
+            {
+                _logger.LogInformation("Email {Email} already exists", verifyEmailDto.Email);
+                return BadRequest(new { isValid = false, message = "Email already in use" });
+            }
+
+            // Verify email format and existence using the external service
+            var verificationResult = await _emailVerificationService.VerifyEmailAsync(verifyEmailDto.Email);
+            
+            if (!verificationResult.IsValid)
+            {
+                _logger.LogInformation("Email {Email} is invalid", verifyEmailDto.Email);
+                return BadRequest(new { isValid = false, message = "Invalid email format" });
+            }
+            
+            if (!verificationResult.Exists)
+            {
+                _logger.LogInformation("Email {Email} doesn't exist", verifyEmailDto.Email);
+                return BadRequest(new { isValid = false, message = "Email doesn't appear to exist" });
+            }
+
+            return Ok(new { isValid = true, message = "Email is valid" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during email verification");
+            return BadRequest(new { isValid = false, message = "Error verifying email" });
         }
     }
     

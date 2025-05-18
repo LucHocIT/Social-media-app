@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../services/AuthContext';
+import '../../../src/assets/css/auth-animations.css';
 
 const LoginModal = ({ isOpen, onClose, onSwitchToRegister }) => {
   const [formData, setFormData] = useState({
@@ -9,21 +10,27 @@ const LoginModal = ({ isOpen, onClose, onSwitchToRegister }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [modalClass, setModalClass] = useState('auth-modal');
+  const [overlayClass, setOverlayClass] = useState('auth-modal-overlay');
+  const [isClosing, setIsClosing] = useState(false);
   const { login } = useAuth();
 
   useEffect(() => {
     if (isOpen) {
-      setModalClass('auth-modal show');
-      document.body.style.overflow = 'hidden';
-    } else {
+      setIsClosing(false);
       setModalClass('auth-modal');
+      setOverlayClass('auth-modal-overlay');
+      document.body.style.overflow = 'hidden';
+    } else if (!isClosing) {
+      // Do nothing if not open and not closing
+      return;
+    } else {
       // Wait for animation to complete before removing
       const timer = setTimeout(() => {
         document.body.style.overflow = 'auto';
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, isClosing]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -48,32 +55,38 @@ const LoginModal = ({ isOpen, onClose, onSwitchToRegister }) => {
       setLoading(false);
     }
   };
-
   const handleClose = () => {
-    setModalClass('auth-modal');
+    setIsClosing(true);
+    setModalClass('auth-modal closing');
+    setOverlayClass('auth-modal-overlay closing');
     setTimeout(() => {
       onClose();
       setFormData({ username: '', password: '' });
       setError('');
+      setIsClosing(false);
     }, 300);
   };
-
   const handleSwitchToRegister = (e) => {
     e.preventDefault();
-    handleClose();
+    setIsClosing(true);
+    setModalClass('auth-modal closing');
+    setOverlayClass('auth-modal-overlay closing');
+    
     setTimeout(() => {
       onSwitchToRegister();
+      setIsClosing(false);
+      setFormData({ username: '', password: '' });
+      setError('');
     }, 300);
   };
-
   return (
     <>
-      {isOpen && (
-        <div className="auth-modal-overlay" onClick={handleClose}>
+      {(isOpen || isClosing) && (
+        <div className={overlayClass} onClick={handleClose}>
           <div className={modalClass} onClick={e => e.stopPropagation()}>
             <div className="auth-modal-header">
               <h2 className="auth-modal-title">
-                <i className="bi bi-box-arrow-in-right text-primary me-2"></i> Login
+                <i className="bi bi-box-arrow-in-right"></i> Welcome Back
               </h2>
               <button className="btn-close" onClick={handleClose}></button>
             </div>
@@ -87,15 +100,13 @@ const LoginModal = ({ isOpen, onClose, onSwitchToRegister }) => {
               )}
               
               <form onSubmit={handleSubmit}>
-                <div className="mb-4">
-                  <label htmlFor="username" className="form-label">Username</label>
-                  <div className="input-group input-group-lg">
-                    <span className="input-group-text bg-light">
-                      <i className="bi bi-person text-primary"></i>
-                    </span>
+                <div className="auth-form-group">
+                  <label htmlFor="username" className="auth-form-label">Username</label>
+                  <div className="auth-input-group">
+                    <i className="bi bi-person auth-input-icon"></i>
                     <input
                       type="text"
-                      className="form-control"
+                      className="auth-form-input"
                       id="username"
                       name="username"
                       placeholder="Enter your username"
@@ -106,18 +117,16 @@ const LoginModal = ({ isOpen, onClose, onSwitchToRegister }) => {
                   </div>
                 </div>
                 
-                <div className="mb-4">
+                <div className="auth-form-group">
                   <div className="d-flex justify-content-between align-items-center">
-                    <label htmlFor="password" className="form-label">Password</label>
-                    <a href="#" className="text-sm text-primary text-decoration-none">Forgot password?</a>
+                    <label htmlFor="password" className="auth-form-label">Password</label>
+                    <a href="#" className="auth-switch-link">Forgot password?</a>
                   </div>
-                  <div className="input-group input-group-lg">
-                    <span className="input-group-text bg-light">
-                      <i className="bi bi-lock text-primary"></i>
-                    </span>
+                  <div className="auth-input-group">
+                    <i className="bi bi-lock auth-input-icon"></i>
                     <input
                       type="password"
-                      className="form-control"
+                      className="auth-form-input"
                       id="password"
                       name="password"
                       placeholder="Enter your password"
@@ -135,44 +144,44 @@ const LoginModal = ({ isOpen, onClose, onSwitchToRegister }) => {
                 
                 <button 
                   type="submit" 
-                  className="btn btn-primary btn-lg w-100 mb-3" 
+                  className="auth-submit-btn mb-3" 
                   disabled={loading}
                 >
                   {loading ? (
                     <>
-                      <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                      Logging in...
+                      <span className="spinner-border spinner-border-sm spinner me-2" role="status" aria-hidden="true"></span>
+                      Signing in...
                     </>
                   ) : (
-                    <>Login</>
+                    <>Sign In</>
                   )}
                 </button>
               </form>
               
-              <div className="text-center mt-4">
-                <p className="text-muted">
-                  Don't have an account?{' '}
-                  <a href="#" className="text-primary fw-bold" onClick={handleSwitchToRegister}>
-                    Sign up
-                  </a>
-                </p>
-              </div>
-
               <div className="auth-separator">
                 <span>or continue with</span>
               </div>
               
               <div className="social-auth-buttons">
-                <button className="btn btn-outline-secondary me-2">
-                  <i className="bi bi-google me-2"></i>Google
+                <button className="social-auth-btn google">
+                  <i className="bi bi-google"></i>Google
                 </button>
-                <button className="btn btn-outline-secondary me-2">
-                  <i className="bi bi-facebook me-2"></i>Facebook
+                <button className="social-auth-btn facebook">
+                  <i className="bi bi-facebook"></i>Facebook
                 </button>
-                <button className="btn btn-outline-secondary">
-                  <i className="bi bi-twitter me-2"></i>Twitter
+                <button className="social-auth-btn twitter">
+                  <i className="bi bi-twitter"></i>Twitter
                 </button>
               </div>
+            </div>
+            
+            <div className="auth-modal-footer">
+              <p className="mb-0">
+                Don't have an account?{' '}
+                <a href="#" className="auth-switch-link" onClick={handleSwitchToRegister}>
+                  Create an account
+                </a>
+              </p>
             </div>
           </div>
         </div>

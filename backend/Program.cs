@@ -31,6 +31,24 @@ builder.Services.AddDbContext<SocialApp.Models.SocialMediaDbContext>(options =>
 // Đăng ký dịch vụ Authentication
 builder.Services.AddScoped<IAuthService, AuthService>();
 
+// Add HttpClient for external API calls with proper timeout and resilience
+builder.Services.AddHttpClient("EmailVerificationClient", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(5);
+    // Add any other configuration for the HttpClient here
+})
+.SetHandlerLifetime(TimeSpan.FromMinutes(5))  // Set the lifetime of the HttpClientHandler
+.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    // Configure proxy if needed
+    UseProxy = false,
+    // Configure TLS/SSL
+    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+});
+
+// Đăng ký Email Verification Service
+builder.Services.AddTransient<IEmailVerificationService, EmailVerificationService>();
+
 // Cấu hình xác thực JWT
 builder.Services.AddAuthentication(options =>
 {
@@ -74,7 +92,4 @@ app.MapControllers();
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
+

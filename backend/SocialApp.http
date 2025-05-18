@@ -1,6 +1,36 @@
 @SocialApp_HostAddress = http://localhost:5062
+@contentType = application/json
 
-GET {{SocialApp_HostAddress}}/weatherforecast/
-Accept: application/json
+### Đăng ký người dùng mới
+POST {{SocialApp_HostAddress}}/api/auth/register
+Content-Type: {{contentType}}
 
-###
+{
+  "username": "testuser",
+  "email": "testuser@example.com",
+  "password": "Test123!",
+  "firstName": "Test",
+  "lastName": "User"
+}
+
+### Đăng nhập
+POST {{SocialApp_HostAddress}}/api/auth/login
+Content-Type: {{contentType}}
+
+{
+  "username": "testuser",
+  "password": "Test123!"
+}
+
+### Lấy thông tin người dùng hiện tại (yêu cầu xác thực)
+# Thay thế <your-token> bằng token nhận được sau khi đăng nhập
+GET {{SocialApp_HostAddress}}/api/users/me
+Authorization: Bearer <your-token>
+
+### Đăng xuất (yêu cầu xác thực)
+# Thay thế <your-token> bằng token nhận được sau khi đăng nhập
+POST {{SocialApp_HostAddress}}/api/auth/logout
+Authorization: Bearer <your-token>
+
+### Lấy thông tin người dùng theo ID
+GET {{SocialApp_HostAddress}}/api/users/1

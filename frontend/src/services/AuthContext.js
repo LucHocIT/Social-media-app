@@ -54,13 +54,22 @@ export function AuthProvider({ children }) {
       throw error;
     }
   };
-
   // Xử lý đăng ký
   const register = async (userData) => {
     try {
+      console.log("AuthContext: Registering user with data:", userData);
       const response = await authApi.register(userData);
+      console.log("AuthContext: Registration successful:", response.data);
       return response.data;
     } catch (error) {
+      console.error("AuthContext: Registration failed:", error);
+      
+      // Provide more detailed error information
+      if (error.response) {
+        console.error("Error status:", error.response.status);
+        console.error("Error data:", error.response.data);
+      }
+      
       throw error;
     }
   };

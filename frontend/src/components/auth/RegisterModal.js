@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../services/AuthContext';
 import { authApi } from '../../services/api';
 import { getPasswordStrength, getPasswordStrengthClass, getPasswordStrengthText } from '../../utils/validation';
+import { DEV_CONFIG } from '../../utils/devConfig';
 import '../../../src/assets/css/auth-animations.css';
 
 const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
@@ -54,6 +55,13 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
       // Only trigger verification if email has some content and appears valid
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (value && emailRegex.test(value)) {
+        // In development mode, skip verification and consider the email valid
+        if (DEV_CONFIG.SKIP_EMAIL_VERIFICATION) {
+          console.log("DEV MODE: Skipping email verification");
+          setEmailValid(true);
+          return;
+        }
+
         // Debounce the email verification
         let debounceTimer;
         clearTimeout(debounceTimer);
@@ -119,8 +127,8 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
       errors.push('Please enter a valid email address format');
-    } else if (emailValid === false) {
-      // Only check emailValid if it's explicitly false
+    } else if (!DEV_CONFIG.SKIP_EMAIL_VERIFICATION && emailValid === false) {
+      // Only check emailValid if it's explicitly false and we're not in dev mode
       errors.push('Please use a valid email address that is not already registered');
     }
     
@@ -130,9 +138,7 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
     }
     
     return true;
-  };
-
-  const handleSubmit = async (e) => {
+  };  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
@@ -144,22 +150,55 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
     setLoading(true);
     
     try {
+      // Log the data before sending for debugging
+      console.log("Sending registration data:", formData);
+      
       // Removing confirmPassword as it's not needed in the API call
       const { confirmPassword, ...registrationData } = formData;
       
-      await register(registrationData);
-      setSuccess('Registration successful! You can now login.');
+      // Set a longer timeout for the registration request (30 seconds)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
       
-      // Switch to login after a short delay
-      setTimeout(() => {
-        handleClose();
+      try {
+        const response = await register(registrationData);
+        console.log("Registration success:", response);
+        clearTimeout(timeoutId);
+        
+        setSuccess('Registration successful! You can now login.');
+        
+        // Switch to login after a short delay
         setTimeout(() => {
-          onSwitchToLogin();
-        }, 300);
-      }, 2000);
+          handleClose();
+          setTimeout(() => {
+            onSwitchToLogin();
+          }, 300);
+        }, 2000);
+      } catch (registerError) {
+        clearTimeout(timeoutId);
+        throw registerError;
+      }
     } catch (err) {
       console.error('Registration error:', err);
-      setError(err.response?.data?.message || 'Failed to register. Please try again.');
+      
+      // Handle specific error cases
+      if (err.name === 'AbortError' || err.code === 'ECONNABORTED') {
+        setError('Registration request timed out. The server might be busy. Please try again later.');
+      } else if (err.code === 'ERR_NETWORK' || err.code === 'ERR_CONNECTION_REFUSED' || !err.response) {
+        setError('Network connection error. Please check your connection and try again later.');
+      } else if (err.response) {
+        if (err.response.status === 504) {
+          setError('The server is taking too long to respond. Please try again later.');
+        } else if (err.response.status === 500) {
+          setError('Server error occurred. Our team has been notified. Please try again later.');
+        } else {
+          console.log("Error response data:", err.response.data);
+          console.log("Error status:", err.response.status);
+          setError(err.response.data?.message || 'Failed to register. Please try again.');
+        }
+      } else {
+        setError('An unexpected error occurred. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -353,12 +392,10 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
                   {formData.password && (
                     <div className="mt-2">
                       <div className="password-strength-meter">
-                        <div className="password-strength-bg">
-                          <div 
-                            className={`password-strength-fill ${getPasswordStrengthClass(passwordStrength)}`}
-                            style={{ width: `${(passwordStrength / 4) * 100}%` }}
-                          ></div>
-                        </div>
+                        <div 
+                          className={`password-strength-fill ${getPasswordStrengthClass(passwordStrength)}`}
+                          style={{ width: `${(passwordStrength / 4) * 100}%` }}
+                        ></div>
                       </div>
                       <small className="text-muted">
                         Password strength: <span className="fw-medium">{getPasswordStrengthText(passwordStrength)}</span>
@@ -418,7 +455,10 @@ const RegisterModal = ({ isOpen, onClose, onSwitchToLogin }) => {
                   <button 
                   type="submit" 
                   className="auth-submit-btn mb-3" 
-                  disabled={loading || emailValid === false || (formData.email && emailValid === null && isVerifyingEmail)}
+                  disabled={loading || 
+                    (!DEV_CONFIG.SKIP_EMAIL_VERIFICATION && emailValid === false) || 
+                    (!DEV_CONFIG.SKIP_EMAIL_VERIFICATION && formData.email && emailValid === null && isVerifyingEmail)
+                  }
                 >
                   {loading ? (
                     <>

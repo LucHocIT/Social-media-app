@@ -30,31 +30,72 @@ public class AuthService : IAuthService
     public async Task<bool> EmailExistsAsync(string email)
     {
         return await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower());
-    }
-
-    public async Task<AuthResponseDTO> RegisterAsync(RegisterUserDTO registerDto)
+    }    public async Task<AuthResponseDTO> RegisterAsync(RegisterUserDTO registerDto)
     {
-        // Kiểm tra xem username hoặc email đã tồn tại chưa
-        if (await _context.Users.AnyAsync(u => u.Username == registerDto.Username))
-            throw new Exception("Username đã tồn tại");
-
-        if (await _context.Users.AnyAsync(u => u.Email == registerDto.Email))
-            throw new Exception("Email đã tồn tại");
-
-        // Verify if the email is valid and exists
-        var emailVerification = await _emailVerificationService.VerifyEmailAsync(registerDto.Email);
-        
-        if (!emailVerification.IsValid)
+        try
         {
-            _logger.LogWarning("Invalid email format: {Email}", registerDto.Email);
-            throw new Exception("Email không hợp lệ, vui lòng kiểm tra lại");
+            // Log start of registration process
+            _logger.LogInformation("Starting registration process for username: {Username}, email: {Email}", 
+                registerDto.Username, registerDto.Email);
+                
+            // Kiểm tra xem username hoặc email đã tồn tại chưa
+            if (await _context.Users.AnyAsync(u => u.Username == registerDto.Username))
+                throw new Exception("Username đã tồn tại");
+
+            if (await _context.Users.AnyAsync(u => u.Email == registerDto.Email))
+                throw new Exception("Email đã tồn tại");
+
+            // Always verify basic email format locally first
+            if (!IsValidEmailFormat(registerDto.Email))
+            {
+                _logger.LogWarning("Invalid email format detected locally: {Email}", registerDto.Email);
+                throw new Exception("Email không hợp lệ, vui lòng kiểm tra lại");
+            }
+
+            bool skipExternalVerification = _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
+            
+            // If not in development mode, try to verify the email with external service
+            if (!skipExternalVerification)
+            {
+                try
+                {
+                    _logger.LogInformation("Attempting to verify email with external service: {Email}", registerDto.Email);
+                    // Verify if the email is valid and exists with a short timeout
+                    var emailVerification = await _emailVerificationService.VerifyEmailAsync(registerDto.Email);
+                    
+                    if (!emailVerification.IsValid)
+                    {
+                        _logger.LogWarning("Invalid email format: {Email}", registerDto.Email);
+                        throw new Exception("Email không hợp lệ, vui lòng kiểm tra lại");
+                    }
+
+                    if (!emailVerification.Exists)
+                    {
+                        _logger.LogWarning("Email does not exist or is not deliverable: {Email}, Message: {Message}", 
+                            registerDto.Email, emailVerification.Message);
+                        throw new Exception("Email không tồn tại hoặc không thể gửi thư đến địa chỉ này");
+                    }
+                    
+                    _logger.LogInformation("Email verification successful for: {Email}", registerDto.Email);
+                }
+                catch (Exception verificationEx)
+                {
+                    // Log the error but continue with registration
+                    _logger.LogWarning(verificationEx, "Email verification service failed, proceeding with registration anyway for: {Email}", 
+                        registerDto.Email);
+                    // We don't rethrow the exception to allow registration to continue
+                }
+            }
+            else
+            {
+                _logger.LogInformation("Development mode - skipping external email verification for: {Email}", registerDto.Email);
+            }
         }
-
-        if (!emailVerification.Exists)
+        catch (Exception ex)
         {
-            _logger.LogWarning("Email does not exist or is not deliverable: {Email}, Message: {Message}", 
-                registerDto.Email, emailVerification.Message);
-            throw new Exception("Email không tồn tại hoặc không thể gửi thư đến địa chỉ này");
+            _logger.LogError(ex, "Error during pre-registration checks for: {Username}, {Email}", 
+                registerDto.Username, registerDto.Email);
+            throw; // Rethrow to be handled by the controller
         }
 
         // Tạo người dùng mới
@@ -129,9 +170,7 @@ public class AuthService : IAuthService
         
         var token = tokenHandler.CreateToken(tokenDescriptor);
         return tokenHandler.WriteToken(token);
-    }
-
-    private static UserResponseDTO MapUserToUserResponseDto(User user)
+    }    private static UserResponseDTO MapUserToUserResponseDto(User user)
     {
         return new UserResponseDTO
         {
@@ -145,5 +184,18 @@ public class AuthService : IAuthService
             CreatedAt = user.CreatedAt,
             LastActive = user.LastActive
         };
+    }
+    
+    private bool IsValidEmailFormat(string email)
+    {
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(email);
+            return addr.Address == email;
+        }
+        catch
+        {
+            return false;
+        }
     }
 }

@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using Polly;
+using Polly.Extensions.Http;
 using SocialApp.Models;
 using SocialApp.Services;
 
@@ -18,7 +20,12 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", 
         builder => builder
-            .WithOrigins("http://localhost:3000", "https://localhost:3000") // Thay đổi theo domain của frontend
+            .WithOrigins(
+                "http://localhost:3000", 
+                "https://localhost:3000",
+                "http://localhost:3001", 
+                "https://localhost:3001"
+            ) // Thay đổi theo domain của frontend
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials());
@@ -34,17 +41,32 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 // Add HttpClient for external API calls with proper timeout and resilience
 builder.Services.AddHttpClient("EmailVerificationClient", client =>
 {
-    client.Timeout = TimeSpan.FromSeconds(5);
-    // Add any other configuration for the HttpClient here
+    // Increase timeout for better reliability with slow external APIs
+    client.Timeout = TimeSpan.FromSeconds(10);
+    
+    // Add default headers if needed
+    client.DefaultRequestHeaders.Add("User-Agent", "SocialApp-Backend");
+    client.DefaultRequestHeaders.Add("Accept", "application/json");
 })
 .SetHandlerLifetime(TimeSpan.FromMinutes(5))  // Set the lifetime of the HttpClientHandler
 .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
 {
-    // Configure proxy if needed
+    // Configure proxy settings
     UseProxy = false,
-    // Configure TLS/SSL
-    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-});
+    
+    // Configure TLS/SSL (only for development)
+    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
+    
+    // Add additional performance settings
+    MaxConnectionsPerServer = 100,
+    UseCookies = false
+})
+// Add retry policy to handle transient failures
+.AddTransientHttpErrorPolicy(policy => policy
+    .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromMilliseconds(100 * Math.Pow(2, retryAttempt))))
+// Add circuit breaker to prevent cascading failures
+.AddTransientHttpErrorPolicy(policy => policy
+    .CircuitBreakerAsync(5, TimeSpan.FromSeconds(30)));
 
 // Đăng ký Email Verification Service
 builder.Services.AddTransient<IEmailVerificationService, EmailVerificationService>();

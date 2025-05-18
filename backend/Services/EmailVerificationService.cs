@@ -17,7 +17,7 @@ public class EmailVerificationService : IEmailVerificationService
         _httpClient = httpClientFactory.CreateClient("EmailVerificationClient");
         _configuration = configuration;
         _logger = logger;
-    }public async Task<EmailVerificationResult> VerifyEmailAsync(string email)
+    }    public async Task<EmailVerificationResult> VerifyEmailAsync(string email)
     {
         try
         {
@@ -29,9 +29,9 @@ public class EmailVerificationService : IEmailVerificationService
                 _logger.LogWarning("Email verification API key is not configured");
                 return new EmailVerificationResult 
                 { 
-                    IsValid = true, // Default to true in case API key is not configured
-                    Exists = true,
-                    Message = "Email verification skipped - API key not configured"
+                    IsValid = true, // Email được coi là hợp lệ về định dạng
+                    Exists = false, // Không thể xác minh sự tồn tại email
+                    Message = "Email verification limited - API key not configured"
                 };
             }
 
@@ -45,9 +45,7 @@ public class EmailVerificationService : IEmailVerificationService
                     Exists = false,
                     Message = "Invalid email format"
                 };
-            }
-
-            try
+            }            try
             {
                 // Set timeout to avoid long waits
                 _httpClient.Timeout = TimeSpan.FromSeconds(5);
@@ -55,53 +53,66 @@ public class EmailVerificationService : IEmailVerificationService
                 // For this example, we'll use Abstract API's email validation service
                 var requestUrl = $"https://emailvalidation.abstractapi.com/v1/?api_key={apiKey}&email={Uri.EscapeDataString(email)}";
                 
+                _logger.LogInformation("Sending email verification request to API for {Email}", email);
                 var response = await _httpClient.GetAsync(requestUrl);
                 
                 if (response.IsSuccessStatusCode)
                 {
+                    var responseContent = await response.Content.ReadAsStringAsync();
+                    _logger.LogInformation("API Response for {Email}: {Response}", email, responseContent);
+                    
                     var verificationResponse = await response.Content.ReadFromJsonAsync<EmailVerificationApiResponse>();
                     
                     if (verificationResponse == null)
                     {
                         _logger.LogWarning("Email verification API returned null response");
-                        // Fallback to basic validation
-                        return new EmailVerificationResult { IsValid = true, Exists = true, Message = "Email format is valid" };
+                        // Không cho phép email không được xác thực
+                        return new EmailVerificationResult { IsValid = true, Exists = false, Message = "Could not verify email existence" };
                     }
                     
                     // Extract useful information from the API response
                     bool isValidSyntax = verificationResponse.IsValidFormat == "true";
-                    bool isSuspicious = verificationResponse.IsFreeEmail == "true" || 
-                                       verificationResponse.IsDisposableEmail == "true";
+                    bool isSuspicious = verificationResponse.IsDisposableEmail == "true"; // Chỉ coi email dùng một lần là đáng nghi ngờ
+                    bool isMxValid = verificationResponse.IsMxFound == "true"; // Kiểm tra xem domain có bản ghi MX không
                     bool isDeliverable = verificationResponse.Deliverability == "DELIVERABLE";
+                    bool isSmtpValid = verificationResponse.IsSmtpValid == "true";
+                    
+                    // Log chi tiết để debug
+                    _logger.LogInformation(
+                        "Email {Email} validation results: ValidSyntax={ValidSyntax}, Disposable={Disposable}, " +
+                        "MxValid={MxValid}, Deliverable={Deliverable}, SmtpValid={SmtpValid}",
+                        email, isValidSyntax, isSuspicious, isMxValid, isDeliverable, isSmtpValid);
                     
                     return new EmailVerificationResult
                     {
+                        // Email hợp lệ nếu cú pháp đúng và không phải email dùng một lần
                         IsValid = isValidSyntax && !isSuspicious,
-                        Exists = isDeliverable,
+                        // Email tồn tại nếu có bản ghi MX và có thể gửi đến
+                        Exists = isMxValid && (isDeliverable || isSmtpValid),
                         Message = verificationResponse.Deliverability
                     };
                 }
                 else
                 {
                     _logger.LogError("Email verification API returned status code: {StatusCode}", response.StatusCode);
-                    // Fallback to basic validation
+                    // Không cho phép email không được xác thực đầy đủ
                     return new EmailVerificationResult 
                     { 
-                        IsValid = true, 
-                        Exists = true,
-                        Message = "Email format is valid (API unavailable)" 
+                        IsValid = true, // Email có định dạng hợp lệ (đã kiểm tra ở trên)
+                        Exists = false, // Không thể xác minh sự tồn tại
+                        Message = "Could not verify email existence (API error)" 
                     };
                 }
             }
             catch (Exception apiEx)
             {
                 _logger.LogError(apiEx, "API error when verifying email {Email}", email);
-                // Fallback to basic validation when API is unavailable
+                // Không cho phép email không được xác thực đầy đủ
                 return new EmailVerificationResult 
                 { 
-                    IsValid = true, 
-                    Exists = true, 
-                    Message = "Email format is valid (API unavailable)" 
+                    IsValid = true, // Email có định dạng hợp lệ (đã kiểm tra ở trên)
+                    Exists = false, // Không thể xác minh sự tồn tại
+                    Message = "Could not verify email existence (API error)" 
                 };
             }
         }

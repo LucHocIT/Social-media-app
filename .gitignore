@@ -1,4 +1,6 @@
-# .NET Core
+# .NET Core - Combined from both sources
+## A streamlined .gitignore for modern .NET projects
+## Get latest from https://github.com/github/gitignore/blob/main/Dotnet.gitignore
 *.swp
 *.user
 *.userosscache
@@ -13,11 +15,16 @@
 [Rr]eleases/
 x64/
 x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
 build/
 bld/
 [Bb]in/
 [Oo]bj/
 [Oo]ut/
+[Ll]og/
+[Ll]ogs/
 msbuild.log
 msbuild.err
 msbuild.wrn
@@ -36,8 +43,17 @@ msbuild.wrn
 *.userosscache
 *.sln.docstates
 
+# .NET Core
+project.lock.json
+project.fragment.lock.json
+artifacts/
+
+# ASP.NET Scaffolding
+ScaffoldingReadMe.txt
+
 # NuGet Packages
 *.nupkg
+*.snupkg
 # The packages folder can be ignored because of Package Restore
 **/packages/*
 # except build/, which is used as an MSBuild target.
@@ -45,13 +61,24 @@ msbuild.wrn
 # Uncomment if necessary however generally it will be regenerated when needed
 #!**/packages/repositories.config
 
-# User-specific files
-*.rsuser
-*.suo
-*.user
-*.userosscache
-*.sln.docstates
-
 # Local configuration
 appsettings.Development.json
 appsettings.local.json
+
+# Others
+~$*
+*~
+CodeCoverage/
+
+# MSBuild Binary and Structured Log
+*.binlog
+
+# MSTest test Results
+[Tt]est[Rr]esult*/
+[Bb]uild[Ll]og.*
+
+# NUnit
+*.VisualState.xml
+TestResult.xml
+nunit-*.xml
+>>>>>>> 0cd9357d6d00816c446d3e2d6b9f2e7f18859133

@@ -23,7 +23,9 @@ public class AuthController : ControllerBase
         _logger = logger;
         _emailVerificationService = emailVerificationService;
         _configuration = configuration;
-    }[HttpPost("register")]
+    }
+
+    [HttpPost("register")]
     public async Task<ActionResult<AuthResponseDTO>> Register(RegisterUserDTO registerDto)
     {
         try
@@ -51,22 +53,22 @@ public class AuthController : ControllerBase
             _logger.LogError(ex, "Error during registration for user {Username}", registerDto?.Username);
             return BadRequest(new { message = ex.Message });
         }
-    }
-
-    [HttpPost("login")]
+    }    [HttpPost("login")]
     public async Task<ActionResult<AuthResponseDTO>> Login(LoginUserDTO loginDto)
     {
-        try
+        var loginResult = await _authService.LoginAsync(loginDto);
+        
+        if (!loginResult.Success)
         {
-            var result = await _authService.LoginAsync(loginDto);
-            return Ok(result);
+            // Đăng nhập thất bại - trả về 401 Unauthorized với thông báo lỗi
+            return Unauthorized(new { message = loginResult.ErrorMessage });
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error during login");
-            return BadRequest(new { message = ex.Message });
-        }
-    }      [HttpPost("verifyemail")]
+        
+        // Đăng nhập thành công
+        return Ok(loginResult.Result);
+    }
+
+    [HttpPost("verifyemail")]
     public async Task<ActionResult> VerifyEmail([FromBody] VerifyEmailDTO verifyEmailDto)
     {
         try
@@ -148,10 +150,6 @@ public class AuthController : ControllerBase
     [Authorize]
     public ActionResult Logout()
     {
-        // Với JWT, đăng xuất thực sự được xử lý tại client bằng cách xóa token
-        // Server có thể thêm logic như ghi log hoặc thêm token vào blacklist nếu cần
-        
-        // Lấy thông tin người dùng hiện tại
         var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
         

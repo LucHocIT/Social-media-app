@@ -122,16 +122,17 @@ public class AuthService : IAuthService
             Token = token,
             User = MapUserToUserResponseDto(newUser)
         };
-    }
-
-    public async Task<AuthResponseDTO> LoginAsync(LoginUserDTO loginDto)
+    }    public async Task<(AuthResponseDTO? Result, bool Success, string? ErrorMessage)> LoginAsync(LoginUserDTO loginDto)
     {
         // Tìm kiếm người dùng theo username
         var user = await _context.Users.FirstOrDefaultAsync(u => u.Username == loginDto.Username);
         
         // Kiểm tra người dùng tồn tại và mật khẩu khớp
         if (user == null || !BCrypt.Net.BCrypt.Verify(loginDto.Password, user.PasswordHash))
-            throw new Exception("Username hoặc mật khẩu không chính xác");
+        {
+            _logger.LogInformation("Đăng nhập thất bại cho username: {Username} - thông tin đăng nhập không chính xác", loginDto.Username);
+            return (null, false, "Username hoặc mật khẩu không chính xác");
+        }
 
         // Cập nhật thời gian hoạt động cuối
         user.LastActive = DateTime.UtcNow;
@@ -140,11 +141,13 @@ public class AuthService : IAuthService
         // Tạo token và trả về response
         var token = GenerateJwtToken(user);
         
-        return new AuthResponseDTO
+        _logger.LogInformation("Đăng nhập thành công cho username: {Username}", user.Username);
+        
+        return (new AuthResponseDTO
         {
             Token = token,
             User = MapUserToUserResponseDto(user)
-        };
+        }, true, null);
     }
 
     public string GenerateJwtToken(User user)

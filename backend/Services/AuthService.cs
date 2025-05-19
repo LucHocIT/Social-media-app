@@ -8,93 +8,96 @@ using SocialApp.Models;
 
 namespace SocialApp.Services;
 
+// This class now acts as an adapter that delegates to the appropriate specialized services
 public class AuthService : IAuthService
 {
-    private readonly SocialMediaDbContext _context;
-    private readonly IConfiguration _configuration;
-    private readonly IEmailVerificationService _emailVerificationService;
+    private readonly IUserAccountService _userAccountService;
+    private readonly IEmailVerificationCodeService _verificationCodeService;
+    private readonly IUserManagementService _userManagementService;
     private readonly ILogger<AuthService> _logger;
 
     public AuthService(
-        SocialMediaDbContext context, 
-        IConfiguration configuration,
-        IEmailVerificationService emailVerificationService,
+        IUserAccountService userAccountService,
+        IEmailVerificationCodeService verificationCodeService,
+        IUserManagementService userManagementService,
         ILogger<AuthService> logger)
     {
-        _context = context;
-        _configuration = configuration;
-        _emailVerificationService = emailVerificationService;
+        _userAccountService = userAccountService;
+        _verificationCodeService = verificationCodeService;
+        _userManagementService = userManagementService;
         _logger = logger;
     }
 
-    public async Task<bool> EmailExistsAsync(string email)
+    // Delegate to UserAccountService
+    public Task<bool> EmailExistsAsync(string email)
     {
-        return await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower());
-    }    public async Task<AuthResponseDTO> RegisterAsync(RegisterUserDTO registerDto)
+        return _userAccountService.EmailExistsAsync(email);
+    }    public Task<AuthResponseDTO> RegisterAsync(RegisterUserDTO registerDto)
     {
-        try
-        {            // Check if it's a registration with verification code
-            if (registerDto is RegisterWithVerificationDTO registerWithVerificationDto)
-            {
-                // Verify the code
-                var (success, message) = await VerifyCodeAsync(registerWithVerificationDto.Email, registerWithVerificationDto.VerificationCode);
-                if (!success)
-                {
-                    throw new Exception(message);
-                }
-            }
-            else
-            {
-                // This is the older path for backwards compatibility
-                var isDevelopment = _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
-                
-                if (!isDevelopment)
-                {
-                    // In production, always require email verification
-                    _logger.LogWarning("Registration attempted without verification code for {Email}", registerDto.Email);
-                    throw new Exception("Bạn cần xác thực email trước khi đăng ký");
-                }
-                else
-                {
-                    _logger.LogWarning("Allowing registration without verification in development mode for {Email}", registerDto.Email);
-                }
-            }
-            
-            // Log start of registration process
-            _logger.LogInformation("Starting registration process for username: {Username}, email: {Email}", 
-                registerDto.Username, registerDto.Email);
-                
-            // Kiểm tra xem username hoặc email đã tồn tại chưa
-            if (await _context.Users.AnyAsync(u => u.Username == registerDto.Username))
-                throw new Exception("Username đã tồn tại");
+        return _userAccountService.RegisterAsync(registerDto);
+    }
+    
+    public Task<(AuthResponseDTO? Result, bool Success, string? ErrorMessage)> LoginAsync(LoginUserDTO loginDto)
+    {
+        return _userAccountService.LoginAsync(loginDto);
+    }
 
-            if (await _context.Users.AnyAsync(u => u.Email == registerDto.Email))
-                throw new Exception("Email đã tồn tại");
+    public string GenerateJwtToken(User user)
+    {
+        return _userAccountService.GenerateJwtToken(user);
+    }
 
-            // Always verify basic email format locally first
-            if (!IsValidEmailFormat(registerDto.Email))
-            {
-                _logger.LogWarning("Invalid email format detected locally: {Email}", registerDto.Email);
-                throw new Exception("Email không hợp lệ, vui lòng kiểm tra lại");
-            }
-            
-            _logger.LogInformation("Email verification successful for: {Email}", registerDto.Email);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error during pre-registration checks for: {Username}, {Email}", 
-                registerDto.Username, registerDto.Email);
-            throw; // Rethrow to be handled by the controller
-        }
+    public Task<AuthResponseDTO> RegisterVerifiedUserAsync(VerifiedRegisterDTO registerDto)
+    {
+        return _userAccountService.RegisterVerifiedUserAsync(registerDto);
+    }
 
-        // Tạo người dùng mới
-        var newUser = new User
-        {
-            Username = registerDto.Username,
-            Email = registerDto.Email,
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword(registerDto.Password),
-            FirstName = registerDto.FirstName,
-            LastName = registerDto.LastName,
+    public Task<UserResponseDTO?> GetUserByIdAsync(int userId)
+    {
+        return _userAccountService.GetUserByIdAsync(userId);
+    }
+
+    // Delegate to EmailVerificationCodeService
+    public Task<(bool Success, string Message)> SendVerificationCodeAsync(string email)
+    {
+        return _verificationCodeService.SendVerificationCodeAsync(email);
+    }
+
+    public Task<(bool Success, string Message)> VerifyCodeAsync(string email, string code)
+    {
+        return _verificationCodeService.VerifyCodeAsync(email, code);
+    }
+
+    public Task<(bool Success, string Message)> SendPasswordResetCodeAsync(string email)
+    {
+        return _verificationCodeService.SendPasswordResetCodeAsync(email);
+    }
+
+    public Task<(bool Success, string Message)> VerifyPasswordResetCodeAsync(string email, string code)
+    {
+        return _verificationCodeService.VerifyPasswordResetCodeAsync(email, code);
+    }
+
+    public Task<(bool Success, string Message)> ResetPasswordAsync(ResetPasswordDTO resetPasswordDto)
+    {
+        return _verificationCodeService.ResetPasswordAsync(resetPasswordDto);
+    }
+
+    // Delegate to UserManagementService
+    public Task<bool> SetUserRoleAsync(int userId, string role)
+    {
+        return _userManagementService.SetUserRoleAsync(userId, role);
+    }
+
+    public Task<bool> SoftDeleteUserAsync(int userId)
+    {
+        return _userManagementService.SoftDeleteUserAsync(userId);
+    }
+
+    public Task<bool> RestoreUserAsync(int userId)
+    {
+        return _userManagementService.RestoreUserAsync(userId);
+    }
             Role = "User", // Default role is User
             IsDeleted = false, 
             CreatedAt = DateTime.UtcNow,

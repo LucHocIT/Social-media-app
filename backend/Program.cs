@@ -76,7 +76,11 @@ builder.Services.AddCors(options =>
 builder.Services.AddDbContext<SocialApp.Models.SocialMediaDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Đăng ký dịch vụ Authentication
+// Đăng ký các dịch vụ authentication đã được tách ra
+builder.Services.AddScoped<IUserAccountService, UserAccountService>();
+builder.Services.AddScoped<IEmailVerificationCodeService, EmailVerificationCodeService>();
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+// Đăng ký AuthService làm Facade cho các service con
 builder.Services.AddScoped<IAuthService, AuthService>();
 
 // Add HttpClient for external API calls with proper timeout and resilience

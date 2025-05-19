@@ -2,23 +2,31 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SocialApp.DTOs;
 using SocialApp.Services.Auth;
+using SocialApp.Services.Email;
 
 namespace SocialApp.Controllers.Auth;
 
 [ApiController]
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
-{
-    private readonly IUserAccountService _userAccountService;
+{    private readonly IUserAccountService _userAccountService;
+    private readonly IAuthService _authService;
+    private readonly IEmailVerificationService _emailVerificationService;
     private readonly ILogger<AuthController> _logger;
-
+      
     public AuthController(
-        IUserAccountService userAccountService, 
+        IUserAccountService userAccountService,
+        IAuthService authService,
+        IEmailVerificationService emailVerificationService,
         ILogger<AuthController> logger)
     {
         _userAccountService = userAccountService;
+        _authService = authService;
+        _emailVerificationService = emailVerificationService;
         _logger = logger;
-    }[HttpPost("register/legacy")]
+    }
+    
+    [HttpPost("register/legacy")]
     [ApiExplorerSettings(IgnoreApi = true)] // Hide this from Swagger/UI as we're now using the verified registration flow
     public async Task<ActionResult<AuthResponseDTO>> RegisterLegacy(RegisterUserDTO registerDto)
     {
@@ -61,8 +69,7 @@ public class AuthController : ControllerBase
         // Đăng nhập thành công
         return Ok(loginResult.Result);
     }
-    
-    [HttpPost("logout")]
+      [HttpPost("logout")]
     [Authorize]
     public ActionResult Logout()
     {
@@ -73,7 +80,8 @@ public class AuthController : ControllerBase
         
         return Ok(new { message = "Đăng xuất thành công" });
     }
-}
+    
+    [HttpPost("verify-email")]
     public async Task<ActionResult> VerifyEmail([FromBody] VerifyEmailDTO verifyEmailDto)
     {
         try
@@ -152,18 +160,6 @@ public class AuthController : ControllerBase
         }
     }
     
-    [HttpPost("logout")]
-    [Authorize]
-    public ActionResult Logout()
-    {
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
-        
-        _logger.LogInformation("User {Username} (ID: {UserId}) logged out", username, userId);
-        
-        return Ok(new { message = "Đăng xuất thành công" });
-    }
-
     // Admin endpoints for user management
 
     [HttpPut("users/{userId}/role")]

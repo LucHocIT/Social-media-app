@@ -95,10 +95,8 @@ public class UserAccountService : IUserAccountService
             _logger.LogError(ex, "Error during pre-registration checks for: {Username}, {Email}", 
                 registerDto.Username, registerDto.Email);
             throw; // Rethrow to be handled by the controller
-        }
-
-        // Tạo người dùng mới
-        var newUser = new User
+        }        // Tạo người dùng mới
+        var newUser = new SocialApp.Models.User
         {
             Username = registerDto.Username,
             Email = registerDto.Email,
@@ -158,9 +156,7 @@ public class UserAccountService : IUserAccountService
             Token = token,
             User = MapUserToUserResponseDto(user)
         }, true, null);
-    }
-
-    public string GenerateJwtToken(User user)
+    }    public string GenerateJwtToken(SocialApp.Models.User user)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
         var key = Encoding.ASCII.GetBytes(_configuration["Jwt:Key"] ?? throw new Exception("Jwt Key is not configured"));
@@ -211,10 +207,8 @@ public class UserAccountService : IUserAccountService
 
             // Check if email already exists (shouldn't happen but good to check)
             if (await EmailExistsAsync(registerDto.Email))
-                throw new Exception("Email đã tồn tại");
-
-            // Create new user
-            var newUser = new User
+                throw new Exception("Email đã tồn tại");            // Create new user
+            var newUser = new SocialApp.Models.User
             {
                 Username = registerDto.Username,
                 Email = registerDto.Email,
@@ -258,10 +252,8 @@ public class UserAccountService : IUserAccountService
         }
 
         return MapUserToUserResponseDto(user);
-    }
-
-    // Helper method to map User entity to UserResponseDTO
-    private static UserResponseDTO MapUserToUserResponseDto(User user)
+    }    // Helper method to map User entity to UserResponseDTO
+    private static UserResponseDTO MapUserToUserResponseDto(SocialApp.Models.User user)
     {
         return new UserResponseDTO
         {

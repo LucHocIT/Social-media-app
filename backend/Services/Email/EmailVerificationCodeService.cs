@@ -1,27 +1,22 @@
 using Microsoft.EntityFrameworkCore;
 using SocialApp.DTOs;
 using SocialApp.Models;
-using SocialApp.Services.Auth;
 
 namespace SocialApp.Services.Email;
 
 public class EmailVerificationCodeService : IEmailVerificationCodeService
-{
-    private readonly SocialMediaDbContext _context;
+{    private readonly SocialMediaDbContext _context;
     private readonly IEmailVerificationService _emailVerificationService;
     private readonly ILogger<EmailVerificationCodeService> _logger;
-    private readonly IUserAccountService _userAccountService;
 
     public EmailVerificationCodeService(
         SocialMediaDbContext context,
         IEmailVerificationService emailVerificationService,
-        ILogger<EmailVerificationCodeService> logger,
-        IUserAccountService userAccountService)
+        ILogger<EmailVerificationCodeService> logger)
     {
         _context = context;
         _emailVerificationService = emailVerificationService;
         _logger = logger;
-        _userAccountService = userAccountService;
     }
 
     // Helper method to generate a random 6-digit code
@@ -56,9 +51,8 @@ public class EmailVerificationCodeService : IEmailVerificationCodeService
                 _logger.LogWarning("Invalid email format: {Email}", email);
                 return (false, "Email không hợp lệ, vui lòng kiểm tra lại");
             }
-            
-            // Check if email already exists in our database
-            if (await _userAccountService.EmailExistsAsync(email))
+              // Check if email already exists in our database
+            if (await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower()))
             {
                 _logger.LogWarning("Email already exists: {Email}", email);
                 return (false, "Email đã được đăng ký");
@@ -173,9 +167,8 @@ public class EmailVerificationCodeService : IEmailVerificationCodeService
                 _logger.LogWarning("Invalid email format for password reset: {Email}", email);
                 return (false, "Email không hợp lệ, vui lòng kiểm tra lại");
             }
-            
-            // Check if email exists in our database
-            if (!await _userAccountService.EmailExistsAsync(email))
+              // Check if email exists in our database
+            if (!await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower()))
             {
                 _logger.LogWarning("Email not found for password reset: {Email}", email);
                 return (false, "Email không tồn tại trong hệ thống");

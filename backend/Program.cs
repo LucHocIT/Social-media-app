@@ -78,12 +78,11 @@ builder.Services.AddCors(options =>
 builder.Services.AddDbContext<SocialApp.Models.SocialMediaDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Đăng ký các dịch vụ authentication đã được tách ra
+// Đăng ký các dịch vụ authentication
 builder.Services.AddScoped<IUserAccountService, UserAccountService>();
-builder.Services.AddScoped<IEmailVerificationCodeService, EmailVerificationCodeService>();
+builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
-// Đăng ký AuthService làm Facade cho các service con
-builder.Services.AddScoped<IAuthService, AuthService>();
+// AuthService và EmailVerificationCodeService đã được loại bỏ vì không cần thiết
 
 // Add HttpClient for external API calls with proper timeout and resilience
 builder.Services.AddHttpClient("EmailVerificationClient", client =>
@@ -114,9 +113,6 @@ builder.Services.AddHttpClient("EmailVerificationClient", client =>
 // Add circuit breaker to prevent cascading failures
 .AddTransientHttpErrorPolicy(policy => policy
     .CircuitBreakerAsync(5, TimeSpan.FromSeconds(30)));
-
-// Đăng ký Email Verification Service 
-builder.Services.AddTransient<IEmailVerificationService, EmailVerificationService>();
 
 // Cấu hình xác thực JWT
 builder.Services.AddAuthentication(options =>

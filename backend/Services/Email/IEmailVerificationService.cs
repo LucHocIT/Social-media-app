@@ -1,18 +1,16 @@
+using SocialApp.DTOs;
+
 namespace SocialApp.Services.Email;
 
 public interface IEmailVerificationService
 {
-    /// <summary>
-    /// Verifies if an email address exists and is valid
-    /// </summary>
-    /// <param name="email">The email address to verify</param>
-    /// <returns>True if the email is valid and exists, otherwise false</returns>
-    Task<EmailVerificationResult> VerifyEmailAsync(string email);
-}
-
-public class EmailVerificationResult
-{
-    public bool IsValid { get; set; }
-    public bool Exists { get; set; }
-    public string? Message { get; set; }
+    // Methods from IEmailVerificationCodeService
+    Task<(bool Success, string Message)> SendVerificationCodeAsync(string email);
+    Task<(bool Success, string Message)> VerifyCodeAsync(string email, string code);
+    Task<(bool Success, string Message)> SendPasswordResetCodeAsync(string email);
+    Task<(bool Success, string Message)> VerifyPasswordResetCodeAsync(string email, string code);
+    Task<(bool Success, string Message)> ResetPasswordAsync(ResetPasswordDTO resetPasswordDto);
+    
+    // Additional method for email validation
+    Task<(bool IsValid, bool Exists, string Message)> VerifyEmailAsync(string email);
 }

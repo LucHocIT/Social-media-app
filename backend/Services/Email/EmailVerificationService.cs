@@ -1,160 +1,31 @@
-using System.Net.Http.Json;
-using System.Text.Json.Serialization;
+using Microsoft.EntityFrameworkCore;
+using SocialApp.DTOs;
+using SocialApp.Models;
 
 namespace SocialApp.Services.Email;
 
 public class EmailVerificationService : IEmailVerificationService
 {
-    private readonly HttpClient _httpClient;
-    private readonly IConfiguration _configuration;
+    private readonly SocialMediaDbContext _context;
     private readonly ILogger<EmailVerificationService> _logger;
 
     public EmailVerificationService(
-        IHttpClientFactory httpClientFactory,
-        IConfiguration configuration,
+        SocialMediaDbContext context,
         ILogger<EmailVerificationService> logger)
     {
-        _httpClient = httpClientFactory.CreateClient("EmailVerificationClient");
-        _configuration = configuration;
+        _context = context;
         _logger = logger;
-    }    public async Task<EmailVerificationResult> VerifyEmailAsync(string email)
-    {
-        try
-        {
-            // Basic email format validation first
-            if (!IsValidEmailFormat(email))
-            {
-                _logger.LogWarning("Email {Email} has invalid format", email);
-                return new EmailVerificationResult
-                {
-                    IsValid = false,
-                    Exists = false,
-                    Message = "Invalid email format"
-                };
-            }
-              // In development mode or any environment when API calls might be unstable,
-            // We're going to use the API for verification even in development mode
-            var isDevelopment = _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
-            // No longer bypassing email verification in development mode
-            // if (isDevelopment)
-            // {
-            //     _logger.LogInformation("Development environment detected - bypassing external API validation for {Email}", email);
-            //     return new EmailVerificationResult
-            //     {
-            //         IsValid = true,
-            //         Exists = true,
-            //         Message = "Development mode - email format is valid"
-            //     };
-            // }
-            
-            // Get API key from configuration
-            var apiKey = _configuration["EmailVerification:ApiKey"];
-            
-            if (string.IsNullOrEmpty(apiKey))
-            {
-                _logger.LogWarning("Email verification API key is not configured");
-                return new EmailVerificationResult 
-                { 
-                    IsValid = true, // Consider email as valid format
-                    Exists = true,  // In development, assume email exists
-                    Message = "Email verification limited - API key not configured"
-                };
-            }
-            
-            try
-            {
-                // Using a very short timeout to avoid application hanging
-                // Set timeout to avoid long waits
-                _httpClient.Timeout = TimeSpan.FromSeconds(3);
-                
-                // For this example, we'll use Abstract API's email validation service
-                var requestUrl = $"https://emailvalidation.abstractapi.com/v1/?api_key={apiKey}&email={Uri.EscapeDataString(email)}";
-                
-                _logger.LogInformation("Sending email verification request to API for {Email}", email);
-                
-                // Use CancellationToken to ensure quick timeout
-                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-                var response = await _httpClient.GetAsync(requestUrl, cts.Token);
-                
-                if (response.IsSuccessStatusCode)
-                {
-                    var responseContent = await response.Content.ReadAsStringAsync(cts.Token);
-                    _logger.LogInformation("API Response for {Email}: {Response}", email, responseContent);
-                    
-                    var verificationResponse = await response.Content.ReadFromJsonAsync<EmailVerificationApiResponse>(cancellationToken: cts.Token);
-                    
-                    if (verificationResponse == null)
-                    {
-                        _logger.LogWarning("Email verification API returned null response");
-                        // Consider the email valid but not verified
-                        return new EmailVerificationResult { IsValid = true, Exists = true, Message = "Could not verify email existence" };
-                    }
-                      // Extract useful information from the API response
-                    bool isValidSyntax = verificationResponse.IsValidFormat?.Value ?? false;
-                    bool isSuspicious = verificationResponse.IsDisposableEmail?.Value ?? false; // Only consider disposable emails suspicious
-                    bool isMxValid = verificationResponse.IsMxFound?.Value ?? false; // Check if domain has MX records
-                    bool isDeliverable = verificationResponse.Deliverability == "DELIVERABLE";
-                    bool isSmtpValid = verificationResponse.IsSmtpValid?.Value ?? false;
-                    
-                    // Log details for debugging
-                    _logger.LogInformation(
-                        "Email {Email} validation results: ValidSyntax={ValidSyntax}, Disposable={Disposable}, " +
-                        "MxValid={MxValid}, Deliverable={Deliverable}, SmtpValid={SmtpValid}",
-                        email, isValidSyntax, isSuspicious, isMxValid, isDeliverable, isSmtpValid);
-                    
-                    return new EmailVerificationResult
-                    {                        // Email is valid if syntax is correct and it's not a disposable email
-                        IsValid = isValidSyntax && !isSuspicious,
-                        // Email exists if it has MX records and is deliverable
-                        Exists = isMxValid && (isDeliverable || isSmtpValid),
-                        Message = verificationResponse.Deliverability
-                    };
-                }                else
-                {
-                    _logger.LogError("Email verification API returned status code: {StatusCode}", response.StatusCode);
-                    // Don't assume the email exists when API check fails
-                    return new EmailVerificationResult 
-                    { 
-                        IsValid = true, // Email has valid format (already checked above)
-                        Exists = false, // Don't assume email exists when API fails
-                        Message = "Could not verify email existence (API error)" 
-                    };
-                }
-            }            catch (OperationCanceledException)
-            {
-                _logger.LogWarning("Email verification API request timed out for {Email}", email);
-                // Don't assume the email exists when API times out
-                return new EmailVerificationResult 
-                { 
-                    IsValid = true,
-                    Exists = false,
-                    Message = "Email verification timed out" 
-                };
-            }
-            catch (Exception apiEx)
-            {
-                _logger.LogError(apiEx, "API error when verifying email {Email}", email);
-                // Don't assume the email exists when API check fails
-                return new EmailVerificationResult 
-                { 
-                    IsValid = true, // Email has valid format (already checked above)
-                    Exists = false, // Don't assume email exists when API fails
-                    Message = "Could not verify email existence (API error)" 
-                };
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error verifying email {Email}", email);
-            return new EmailVerificationResult 
-            { 
-                IsValid = false, 
-                Exists = false,
-                Message = $"Verification error: {ex.Message}" 
-            };
-        }
     }
-    
+
+    // Helper method to generate a random 6-digit code
+    private string GenerateRandomCode()
+    {
+        // Generate a 6-digit random code
+        Random random = new Random();
+        return random.Next(100000, 999999).ToString();
+    }
+
+    // Helper method to check if email format is valid
     private bool IsValidEmailFormat(string email)
     {
         try
@@ -166,46 +37,300 @@ public class EmailVerificationService : IEmailVerificationService
         {
             return false;
         }
-    }    // Response class structured to match the Abstract API email validation response
-    private class EmailVerificationApiResponse
-    {
-        [JsonPropertyName("email")]
-        public string? Email { get; set; }
-        
-        [JsonPropertyName("deliverability")]
-        public string? Deliverability { get; set; }
-        
-        [JsonPropertyName("quality_score")]
-        public string? QualityScore { get; set; }
-        
-        [JsonPropertyName("is_valid_format")]
-        public ValidFormatProperty? IsValidFormat { get; set; }
-        
-        [JsonPropertyName("is_free_email")]
-        public ValidFormatProperty? IsFreeEmail { get; set; }
-        
-        [JsonPropertyName("is_disposable_email")]
-        public ValidFormatProperty? IsDisposableEmail { get; set; }
-        
-        [JsonPropertyName("is_role_email")]
-        public ValidFormatProperty? IsRoleEmail { get; set; }
-        
-        [JsonPropertyName("is_catchall_email")]
-        public ValidFormatProperty? IsCatchallEmail { get; set; }
-        
-        [JsonPropertyName("is_mx_found")]
-        public ValidFormatProperty? IsMxFound { get; set; }
-        
-        [JsonPropertyName("is_smtp_valid")]
-        public ValidFormatProperty? IsSmtpValid { get; set; }
     }
     
-    private class ValidFormatProperty
+    // Implementation of email verification method
+    public async Task<(bool IsValid, bool Exists, string Message)> VerifyEmailAsync(string email)
     {
-        [JsonPropertyName("value")]
-        public bool Value { get; set; }
+        // Basic validation of email format
+        if (!IsValidEmailFormat(email))
+        {
+            return (false, false, "Invalid email format");
+        }
         
-        [JsonPropertyName("text")]
-        public string? Text { get; set; }
+        // In a real application, you might use an email validation service
+        // For simplicity, we'll assume the email exists if it has a valid format
+        // and is from a common domain
+        
+        string domain = email.Split('@').LastOrDefault()?.ToLower();
+        bool likelyExists = domain != null && (
+            domain.Contains("gmail.com") || 
+            domain.Contains("yahoo.com") || 
+            domain.Contains("outlook.com") ||
+            domain.Contains("hotmail.com") ||
+            domain.Contains("mail.com")
+        );
+        
+        return (true, likelyExists, likelyExists ? "Email likely exists" : "Email may not exist");
+    }
+    
+    // Send verification code to user's email
+    public async Task<(bool Success, string Message)> SendVerificationCodeAsync(string email)
+    {
+        try
+        {
+            if (!IsValidEmailFormat(email))
+            {
+                _logger.LogWarning("Invalid email format: {Email}", email);
+                return (false, "Email không hợp lệ, vui lòng kiểm tra lại");
+            }
+              // Check if email already exists in our database
+            if (await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower()))
+            {
+                _logger.LogWarning("Email already exists: {Email}", email);
+                return (false, "Email đã được đăng ký");
+            }
+            
+            // Verify email format and existence
+            var emailVerification = await VerifyEmailAsync(email);
+            
+            if (!emailVerification.IsValid)
+            {
+                _logger.LogWarning("Invalid email format: {Email}", email);
+                return (false, "Email không hợp lệ, vui lòng kiểm tra lại");
+            }
+
+            if (!emailVerification.Exists)
+            {
+                _logger.LogWarning("Email does not exist: {Email}", email);
+                return (false, "Email không tồn tại hoặc không thể gửi thư đến địa chỉ này");
+            }
+            
+            // Generate verification code
+            string verificationCode = GenerateRandomCode();
+            
+            // Set expiration time (10 minutes from now)
+            var expiresAt = DateTime.UtcNow.AddMinutes(10);
+            
+            // Check if there's an existing code for this email
+            var existingCode = await _context.EmailVerificationCodes
+                .FirstOrDefaultAsync(c => c.Email.ToLower() == email.ToLower() && !c.IsUsed);
+                
+            if (existingCode != null)
+            {
+                // Update existing code
+                existingCode.Code = verificationCode;
+                existingCode.CreatedAt = DateTime.UtcNow;
+                existingCode.ExpiresAt = expiresAt;
+                existingCode.IsUsed = false;
+            }
+            else
+            {
+                // Create new verification code entry
+                var newVerificationCode = new EmailVerificationCode
+                {
+                    Email = email,
+                    Code = verificationCode,
+                    CreatedAt = DateTime.UtcNow,
+                    ExpiresAt = expiresAt,
+                    IsUsed = false
+                };
+                
+                await _context.EmailVerificationCodes.AddAsync(newVerificationCode);
+            }
+            
+            await _context.SaveChangesAsync();
+            
+            // TODO: Send email with verification code
+            // For now, just log the code (in a real application, you would use an email service)
+            _logger.LogInformation("Verification code for {Email}: {Code}", email, verificationCode);
+            
+            return (true, "Mã xác nhận đã được gửi đến email của bạn");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending verification code to {Email}", email);
+            return (false, "Đã xảy ra lỗi khi gửi mã xác nhận. Vui lòng thử lại sau.");
+        }
+    }
+      
+    // Verify the code provided by the user
+    public async Task<(bool Success, string Message)> VerifyCodeAsync(string email, string code)
+    {
+        try
+        {
+            // Find the verification code for the email
+            var verificationCode = await _context.EmailVerificationCodes
+                .FirstOrDefaultAsync(c => 
+                    c.Email.ToLower() == email.ToLower() && 
+                    c.Code == code && 
+                    !c.IsUsed);
+            
+            if (verificationCode == null)
+            {
+                return (false, "Mã xác nhận không chính xác");
+            }
+            
+            // Check if code has expired
+            if (verificationCode.ExpiresAt < DateTime.UtcNow)
+            {
+                return (false, "Mã xác nhận đã hết hạn");
+            }
+            
+            // Mark the code as used
+            verificationCode.IsUsed = true;
+            await _context.SaveChangesAsync();
+            
+            return (true, "Xác thực thành công. Email này đã sẵn sàng để đăng ký.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error verifying code for {Email}", email);
+            return (false, "Đã xảy ra lỗi khi xác thực mã. Vui lòng thử lại sau.");
+        }
+    }
+
+    // Send password reset code to user's email
+    public async Task<(bool Success, string Message)> SendPasswordResetCodeAsync(string email)
+    {
+        try
+        {
+            if (!IsValidEmailFormat(email))
+            {
+                _logger.LogWarning("Invalid email format for password reset: {Email}", email);
+                return (false, "Email không hợp lệ, vui lòng kiểm tra lại");
+            }
+              // Check if email exists in our database
+            if (!await _context.Users.AnyAsync(u => u.Email.ToLower() == email.ToLower()))
+            {
+                _logger.LogWarning("Email not found for password reset: {Email}", email);
+                return (false, "Email không tồn tại trong hệ thống");
+            }
+            
+            // Generate verification code
+            string verificationCode = GenerateRandomCode();
+            
+            // Set expiration time (10 minutes from now)
+            var expiresAt = DateTime.UtcNow.AddMinutes(10);
+            
+            // Check if there's an existing code for this email
+            var existingCode = await _context.EmailVerificationCodes
+                .FirstOrDefaultAsync(c => c.Email.ToLower() == email.ToLower() && !c.IsUsed);
+                
+            if (existingCode != null)
+            {
+                // Update existing code
+                existingCode.Code = verificationCode;
+                existingCode.CreatedAt = DateTime.UtcNow;
+                existingCode.ExpiresAt = expiresAt;
+                existingCode.IsUsed = false;
+            }
+            else
+            {
+                // Create new verification code entry
+                var newVerificationCode = new EmailVerificationCode
+                {
+                    Email = email,
+                    Code = verificationCode,
+                    CreatedAt = DateTime.UtcNow,
+                    ExpiresAt = expiresAt,
+                    IsUsed = false
+                };
+                
+                await _context.EmailVerificationCodes.AddAsync(newVerificationCode);
+            }
+            
+            await _context.SaveChangesAsync();
+            
+            // TODO: Send email with verification code
+            // For now, just log the code (in a real application, you would use an email service)
+            _logger.LogInformation("Password reset verification code for {Email}: {Code}", email, verificationCode);
+            
+            return (true, "Mã xác nhận đã được gửi đến email của bạn");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending password reset code to {Email}", email);
+            return (false, "Đã xảy ra lỗi khi gửi mã xác nhận. Vui lòng thử lại sau.");
+        }
+    }
+
+    // Verify the password reset code provided by the user
+    public async Task<(bool Success, string Message)> VerifyPasswordResetCodeAsync(string email, string code)
+    {
+        try
+        {
+            // Find the verification code for the email
+            var verificationCode = await _context.EmailVerificationCodes
+                .FirstOrDefaultAsync(c => 
+                    c.Email.ToLower() == email.ToLower() && 
+                    c.Code == code && 
+                    !c.IsUsed);
+            
+            if (verificationCode == null)
+            {
+                return (false, "Mã xác nhận không chính xác");
+            }
+            
+            // Check if code has expired
+            if (verificationCode.ExpiresAt < DateTime.UtcNow)
+            {
+                return (false, "Mã xác nhận đã hết hạn");
+            }
+            
+            // Don't mark the code as used yet, we'll do that after password reset
+            
+            return (true, "Xác thực thành công. Bạn có thể đặt lại mật khẩu.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error verifying password reset code for {Email}", email);
+            return (false, "Đã xảy ra lỗi khi xác thực mã. Vui lòng thử lại sau.");
+        }
+    }
+
+    // Reset user's password after verification
+    public async Task<(bool Success, string Message)> ResetPasswordAsync(ResetPasswordDTO resetPasswordDto)
+    {
+        try
+        {
+            // Verify the code again
+            var (codeValid, message) = await VerifyPasswordResetCodeAsync(resetPasswordDto.Email, resetPasswordDto.Code);
+            
+            if (!codeValid)
+            {
+                return (false, message);
+            }
+            
+            // Check if passwords match (even though there's annotation)
+            if (resetPasswordDto.NewPassword != resetPasswordDto.ConfirmPassword)
+            {
+                return (false, "Mật khẩu xác nhận không khớp");
+            }
+            
+            // Find the user by email
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Email.ToLower() == resetPasswordDto.Email.ToLower());
+                
+            if (user == null)
+            {
+                return (false, "Người dùng không tồn tại");
+            }
+            
+            // Update the user's password
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(resetPasswordDto.NewPassword);
+            user.LastActive = DateTime.UtcNow;
+            
+            // Mark the verification code as used
+            var verificationCode = await _context.EmailVerificationCodes
+                .FirstOrDefaultAsync(c => 
+                    c.Email.ToLower() == resetPasswordDto.Email.ToLower() && 
+                    c.Code == resetPasswordDto.Code && 
+                    !c.IsUsed);
+                
+            if (verificationCode != null)
+            {
+                verificationCode.IsUsed = true;
+            }
+            
+            await _context.SaveChangesAsync();
+            
+            return (true, "Đặt lại mật khẩu thành công");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resetting password for {Email}", resetPasswordDto.Email);
+            return (false, "Đã xảy ra lỗi khi đặt lại mật khẩu. Vui lòng thử lại sau.");
+        }
     }
 }

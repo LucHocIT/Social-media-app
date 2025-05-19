@@ -110,6 +110,11 @@ public class VerifiedRegisterDTO
     [Required]
     [StringLength(50, MinimumLength = 6)]
     public string Password { get; set; } = string.Empty;
+    
+    [Required]
+    [StringLength(50, MinimumLength = 6)]
+    [Compare("Password", ErrorMessage = "Mật khẩu xác nhận không khớp")]
+    public string ConfirmPassword { get; set; } = string.Empty;
 
     [StringLength(50)]
     public string? FirstName { get; set; }

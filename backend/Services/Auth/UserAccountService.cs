@@ -10,23 +10,19 @@ using SocialApp.Services.Email;
 namespace SocialApp.Services.Auth;
 
 public class UserAccountService : IUserAccountService
-{
-    private readonly SocialMediaDbContext _context;
+{    private readonly SocialMediaDbContext _context;
     private readonly IConfiguration _configuration;
-    private readonly IEmailVerificationCodeService _verificationCodeService;
     private readonly IEmailVerificationService _emailVerificationService;
     private readonly ILogger<UserAccountService> _logger;
 
     public UserAccountService(
         SocialMediaDbContext context, 
         IConfiguration configuration,
-        IEmailVerificationCodeService verificationCodeService,
         IEmailVerificationService emailVerificationService,
         ILogger<UserAccountService> logger)
     {
         _context = context;
         _configuration = configuration;
-        _verificationCodeService = verificationCodeService;
         _emailVerificationService = emailVerificationService;
         _logger = logger;
     }
@@ -42,13 +38,11 @@ public class UserAccountService : IUserAccountService
         {
             // Check if it's a registration with verification code
             if (registerDto is RegisterWithVerificationDTO registerWithVerificationDto)
-            {
-                // Verify the code
-                var (success, message) = await _verificationCodeService.VerifyCodeAsync(
+            {                // Verify the code
+                var (success, message) = await _emailVerificationService.VerifyCodeAsync(
                     registerWithVerificationDto.Email, 
                     registerWithVerificationDto.VerificationCode);
-                    
-                if (!success)
+                    if (!success)
                 {
                     throw new Exception(message);
                 }

@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using SocialApp.Models;
 
-namespace SocialApp.Services;
+namespace SocialApp.Services.User;
 
 public class UserManagementService : IUserManagementService
 {

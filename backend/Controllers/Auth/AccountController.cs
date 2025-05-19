@@ -1,24 +1,35 @@
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SocialApp.DTOs;
-using SocialApp.Services;
+using SocialApp.Services.Auth;
+using SocialApp.Services.Email;
 
-namespace SocialApp.Controllers;
+namespace SocialApp.Controllers.Auth;
 
 [ApiController]
 [Route("api/[controller]")]
-public class AuthController : ControllerBase
+public class AccountController : ControllerBase
 {
     private readonly IUserAccountService _userAccountService;
-    private readonly ILogger<AuthController> _logger;
+    private readonly IEmailVerificationCodeService _verificationCodeService;
+    private readonly IEmailVerificationService _emailVerificationService;
+    private readonly ILogger<AccountController> _logger;
+    private readonly IConfiguration _configuration;
 
-    public AuthController(
-        IUserAccountService userAccountService, 
-        ILogger<AuthController> logger)
+    public AccountController(
+        IUserAccountService userAccountService,
+        IEmailVerificationCodeService verificationCodeService,
+        IEmailVerificationService emailVerificationService,
+        ILogger<AccountController> logger,
+        IConfiguration configuration)
     {
         _userAccountService = userAccountService;
+        _verificationCodeService = verificationCodeService;
+        _emailVerificationService = emailVerificationService;
         _logger = logger;
-    }[HttpPost("register/legacy")]
+        _configuration = configuration;
+    }
+
+    [HttpPost("register/legacy")]
     [ApiExplorerSettings(IgnoreApi = true)] // Hide this from Swagger/UI as we're now using the verified registration flow
     public async Task<ActionResult<AuthResponseDTO>> RegisterLegacy(RegisterUserDTO registerDto)
     {
@@ -38,7 +49,7 @@ public class AuthController : ControllerBase
                 "FirstName={FirstName}, LastName={LastName}",
                 registerDto.Username, registerDto.Email, registerDto.FirstName, registerDto.LastName);
                 
-            var result = await _authService.RegisterAsync(registerDto);
+            var result = await _userAccountService.RegisterAsync(registerDto);
             _logger.LogInformation("User registered successfully: {Username}", registerDto.Username);
             return Ok(result);
         }
@@ -47,33 +58,9 @@ public class AuthController : ControllerBase
             _logger.LogError(ex, "Error during registration for user {Username}", registerDto?.Username);
             return BadRequest(new { message = ex.Message });
         }
-    }    [HttpPost("login")]
-    public async Task<ActionResult<AuthResponseDTO>> Login(LoginUserDTO loginDto)
-    {
-        var loginResult = await _userAccountService.LoginAsync(loginDto);
-        
-        if (!loginResult.Success)
-        {
-            // Đăng nhập thất bại - trả về 401 Unauthorized với thông báo lỗi
-            return Unauthorized(new { message = loginResult.ErrorMessage });
-        }
-        
-        // Đăng nhập thành công
-        return Ok(loginResult.Result);
     }
-    
-    [HttpPost("logout")]
-    [Authorize]
-    public ActionResult Logout()
-    {
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
-        
-        _logger.LogInformation("User {Username} (ID: {UserId}) logged out", username, userId);
-        
-        return Ok(new { message = "Đăng xuất thành công" });
-    }
-}
+
+    [HttpPost("verifyemail")]
     public async Task<ActionResult> VerifyEmail([FromBody] VerifyEmailDTO verifyEmailDto)
     {
         try
@@ -97,17 +84,11 @@ public class AuthController : ControllerBase
             }
             
             // Check if email already exists in our database
-            if (await _authService.EmailExistsAsync(verifyEmailDto.Email))
+            if (await _userAccountService.EmailExistsAsync(verifyEmailDto.Email))
             {
                 _logger.LogInformation("Email {Email} already exists in database", verifyEmailDto.Email);
                 return BadRequest(new { isValid = false, message = "Email already in use" });
-            }            // Comment out this section to enable email verification even in development mode
-            // var isDevelopment = _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
-            // if (isDevelopment)
-            // {
-            //     _logger.LogInformation("Development environment - skipping external email verification for {Email}", verifyEmailDto.Email);
-            //     return Ok(new { isValid = true, message = "Email is valid (development mode)" });
-            // }
+            }
             
             try 
             {
@@ -151,95 +132,8 @@ public class AuthController : ControllerBase
             return BadRequest(new { isValid = false, message = "Error verifying email. Please try again later." });
         }
     }
-    
-    [HttpPost("logout")]
-    [Authorize]
-    public ActionResult Logout()
-    {
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-        var username = User.FindFirst(System.Security.Claims.ClaimTypes.Name)?.Value;
-        
-        _logger.LogInformation("User {Username} (ID: {UserId}) logged out", username, userId);
-        
-        return Ok(new { message = "Đăng xuất thành công" });
-    }
 
-    // Admin endpoints for user management
-
-    [HttpPut("users/{userId}/role")]
-    [Authorize(Roles = "Admin")]
-    public async Task<ActionResult> SetUserRole(int userId, [FromBody] SetUserRoleDTO roleDto)
-    {
-        _logger.LogInformation("Admin attempting to change role for User ID: {UserId} to {Role}", userId, roleDto.Role);
-        
-        // Don't allow changing own role
-        if (User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value == userId.ToString())
-        {
-            _logger.LogWarning("Admin attempted to change their own role");
-            return BadRequest(new { message = "Không thể thay đổi vai trò của chính mình" });
-        }
-        
-        var result = await _authService.SetUserRoleAsync(userId, roleDto.Role);
-        if (!result)
-        {
-            return NotFound(new { message = "Không tìm thấy người dùng hoặc vai trò không hợp lệ" });
-        }
-        
-        return Ok(new { message = $"Đã thiết lập vai trò {roleDto.Role} cho người dùng" });
-    }
-
-    [HttpDelete("users/{userId}")]
-    [Authorize(Roles = "Admin")]
-    public async Task<ActionResult> DeleteUser(int userId)
-    {
-        _logger.LogInformation("Admin attempting to soft delete User ID: {UserId}", userId);
-        
-        // Don't allow deleting self
-        if (User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value == userId.ToString())
-        {
-            _logger.LogWarning("Admin attempted to delete themselves");
-            return BadRequest(new { message = "Không thể xóa tài khoản của chính mình" });
-        }
-        
-        var result = await _authService.SoftDeleteUserAsync(userId);
-        if (!result)
-        {
-            return NotFound(new { message = "Không tìm thấy người dùng" });
-        }
-        
-        return Ok(new { message = "Người dùng đã bị xóa tạm thời" });
-    }
-
-    [HttpPost("users/{userId}/restore")]
-    [Authorize(Roles = "Admin")]
-    public async Task<ActionResult> RestoreUser(int userId)
-    {
-        _logger.LogInformation("Admin attempting to restore User ID: {UserId}", userId);
-        
-        var result = await _authService.RestoreUserAsync(userId);
-        if (!result)
-        {
-            return NotFound(new { message = "Không tìm thấy người dùng" });
-        }
-        
-        return Ok(new { message = "Người dùng đã được khôi phục" });
-    }
-
-    [HttpGet("users/{userId}")]
-    [Authorize(Roles = "Admin")]
-    public async Task<ActionResult<UserResponseDTO>> GetUser(int userId)
-    {
-        _logger.LogInformation("Admin requesting details for User ID: {UserId}", userId);
-        
-        var user = await _authService.GetUserByIdAsync(userId);
-        if (user == null)
-        {
-            return NotFound(new { message = "Không tìm thấy người dùng" });
-        }
-        
-        return Ok(user);
-    }
-      [HttpPost("register/verified")]
+    [HttpPost("register/verified")]
     public async Task<ActionResult<AuthResponseDTO>> RegisterVerified(RegisterWithVerificationDTO registerDto)
     {
         try
@@ -258,7 +152,7 @@ public class AuthController : ControllerBase
                 "FirstName={FirstName}, LastName={LastName}",
                 registerDto.Username, registerDto.Email, registerDto.FirstName, registerDto.LastName);
                 
-            var result = await _authService.RegisterAsync(registerDto);
+            var result = await _userAccountService.RegisterAsync(registerDto);
             _logger.LogInformation("User registered successfully: {Username}", registerDto.Username);
             return Ok(result);
         }
@@ -276,7 +170,7 @@ public class AuthController : ControllerBase
         {
             _logger.LogInformation("Sending verification code to: {Email}", sendVerificationCodeDto.Email);
             
-            var (success, message) = await _authService.SendVerificationCodeAsync(sendVerificationCodeDto.Email);
+            var (success, message) = await _verificationCodeService.SendVerificationCodeAsync(sendVerificationCodeDto.Email);
             
             if (!success)
             {
@@ -291,14 +185,15 @@ public class AuthController : ControllerBase
             return BadRequest(new { success = false, message = ex.Message });
         }
     }
-      [HttpPost("verifyCode")]
+    
+    [HttpPost("verifyCode")]
     public async Task<IActionResult> VerifyCode([FromBody] VerifyCodeDTO verifyCodeDto)
     {
         try
         {
             _logger.LogInformation("Verifying code for: {Email}", verifyCodeDto.Email);
             
-            var (success, message) = await _authService.VerifyCodeAsync(verifyCodeDto.Email, verifyCodeDto.Code);
+            var (success, message) = await _verificationCodeService.VerifyCodeAsync(verifyCodeDto.Email, verifyCodeDto.Code);
             
             if (!success)
             {
@@ -318,7 +213,8 @@ public class AuthController : ControllerBase
             return BadRequest(new { success = false, message = ex.Message });
         }
     }
-      [HttpPost("verifyAndRegister")]
+    
+    [HttpPost("verifyAndRegister")]
     public async Task<ActionResult<AuthResponseDTO>> VerifyAndRegister([FromBody] VerifiedRegisterDTO registerDto)
     {
         try
@@ -331,7 +227,7 @@ public class AuthController : ControllerBase
                 return BadRequest(new { message = "Registration data cannot be empty" });
             }
             
-            var result = await _authService.RegisterVerifiedUserAsync(registerDto);
+            var result = await _userAccountService.RegisterVerifiedUserAsync(registerDto);
             _logger.LogInformation("User registered successfully after verification: {Username}", registerDto.Username);
             return Ok(result);
         }
@@ -356,7 +252,7 @@ public class AuthController : ControllerBase
         {
             _logger.LogInformation("Password reset requested for: {Email}", forgotPasswordDto.Email);
             
-            var (success, message) = await _authService.SendPasswordResetCodeAsync(forgotPasswordDto.Email);
+            var (success, message) = await _verificationCodeService.SendPasswordResetCodeAsync(forgotPasswordDto.Email);
             
             if (!success)
             {
@@ -379,7 +275,8 @@ public class AuthController : ControllerBase
         {
             _logger.LogInformation("Verifying reset code for: {Email}", verifyResetCodeDto.Email);
             
-            var (success, message) = await _authService.VerifyPasswordResetCodeAsync(verifyResetCodeDto.Email, verifyResetCodeDto.Code);
+            var (success, message) = await _verificationCodeService.VerifyPasswordResetCodeAsync(
+                verifyResetCodeDto.Email, verifyResetCodeDto.Code);
             
             if (!success)
             {
@@ -402,7 +299,7 @@ public class AuthController : ControllerBase
         {
             _logger.LogInformation("Resetting password for: {Email}", resetPasswordDto.Email);
             
-            var (success, message) = await _authService.ResetPasswordAsync(resetPasswordDto);
+            var (success, message) = await _verificationCodeService.ResetPasswordAsync(resetPasswordDto);
             
             if (!success)
             {

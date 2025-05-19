@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using SocialApp.DTOs;
 using SocialApp.Models;
+using SocialApp.Services.Auth;
 
-namespace SocialApp.Services;
+namespace SocialApp.Services.Email;
 
 public class EmailVerificationCodeService : IEmailVerificationCodeService
 {

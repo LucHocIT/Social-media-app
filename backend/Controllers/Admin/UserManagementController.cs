@@ -1,9 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SocialApp.DTOs;
-using SocialApp.Services;
+using SocialApp.Services.Auth;
+using SocialApp.Services.User;
 
-namespace SocialApp.Controllers;
+namespace SocialApp.Controllers.Admin;
 
 [ApiController]
 [Route("api/[controller]")]

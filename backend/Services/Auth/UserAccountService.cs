@@ -5,8 +5,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SocialApp.DTOs;
 using SocialApp.Models;
+using SocialApp.Services.Email;
 
-namespace SocialApp.Services;
+namespace SocialApp.Services.Auth;
 
 public class UserAccountService : IUserAccountService
 {

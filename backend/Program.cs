@@ -5,7 +5,9 @@ using System.Text;
 using Polly;
 using Polly.Extensions.Http;
 using SocialApp.Models;
-using SocialApp.Services;
+using SocialApp.Services.Auth;
+using SocialApp.Services.Email;
+using SocialApp.Services.User;
 using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -113,7 +115,7 @@ builder.Services.AddHttpClient("EmailVerificationClient", client =>
 .AddTransientHttpErrorPolicy(policy => policy
     .CircuitBreakerAsync(5, TimeSpan.FromSeconds(30)));
 
-// Đăng ký Email Verification Service
+// Đăng ký Email Verification Service 
 builder.Services.AddTransient<IEmailVerificationService, EmailVerificationService>();
 
 // Cấu hình xác thực JWT

@@ -1,7 +1,7 @@
 using System.Net.Http.Json;
 using System.Text.Json.Serialization;
 
-namespace SocialApp.Services;
+namespace SocialApp.Services.Email;
 
 public class EmailVerificationService : IEmailVerificationService
 {

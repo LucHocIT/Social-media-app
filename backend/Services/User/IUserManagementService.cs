@@ -1,4 +1,4 @@
-namespace SocialApp.Services;
+namespace SocialApp.Services.User;
 
 public interface IUserManagementService
 {

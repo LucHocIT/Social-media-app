@@ -1,7 +1,7 @@
 using SocialApp.DTOs;
 using SocialApp.Models;
 
-namespace SocialApp.Services;
+namespace SocialApp.Services.Auth;
 
 public interface IUserAccountService
 {

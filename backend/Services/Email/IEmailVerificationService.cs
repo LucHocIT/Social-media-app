@@ -1,4 +1,4 @@
-namespace SocialApp.Services;
+namespace SocialApp.Services.Email;
 
 public interface IEmailVerificationService
 {

@@ -5,8 +5,10 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using SocialApp.DTOs;
 using SocialApp.Models;
+using SocialApp.Services.Email;
+using SocialApp.Services.User;
 
-namespace SocialApp.Services;
+namespace SocialApp.Services.Auth;
 
 // This class now acts as an adapter that delegates to the appropriate specialized services
 public class AuthService : IAuthService

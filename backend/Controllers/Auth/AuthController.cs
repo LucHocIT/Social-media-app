@@ -51,10 +51,9 @@ public class AuthController : ControllerBase
         return Ok(new { message = "Đăng xuất thành công" });
     }
     
-    
-    [HttpPut("users/{userId}/role")]
+      [HttpPut("users/{userId}/role")]
     [Authorize(Roles = "Admin")]
-    public async Task<ActionResult> SetUserRole(int userId, [FromBody] SetUserRoleDTO roleDto)
+    public ActionResult SetUserRole(int userId, [FromBody] SetUserRoleDTO roleDto)
     {
         _logger.LogInformation("Admin attempting to change role for User ID: {UserId} to {Role}", userId, roleDto.Role);
         
@@ -68,10 +67,9 @@ public class AuthController : ControllerBase
         // This functionality should be moved to a user management service
         return NotFound(new { message = "Function not implemented after service refactoring" });
     }
-    
-    [HttpDelete("users/{userId}")]
+      [HttpDelete("users/{userId}")]
     [Authorize(Roles = "Admin")]
-    public async Task<ActionResult> DeleteUser(int userId)
+    public ActionResult DeleteUser(int userId)
     {
         _logger.LogInformation("Admin attempting to soft delete User ID: {UserId}", userId);
         
@@ -85,16 +83,15 @@ public class AuthController : ControllerBase
         // This functionality should be moved to a user management service
         return NotFound(new { message = "Function not implemented after service refactoring" });
     }   
-    
-     [HttpPost("users/{userId}/restore")]
+      [HttpPost("users/{userId}/restore")]
     [Authorize(Roles = "Admin")]
-    public async Task<ActionResult> RestoreUser(int userId)
+    public ActionResult RestoreUser(int userId)
     {
         _logger.LogInformation("Admin attempting to restore User ID: {UserId}", userId);
         
         // This functionality should be moved to a user management service
         return NotFound(new { message = "Function not implemented after service refactoring" });
-    }    [HttpGet("users/{userId}")]
+    }[HttpGet("users/{userId}")]
     [Authorize(Roles = "Admin")]
     public async Task<ActionResult<UserResponseDTO>> GetUser(int userId)
     {

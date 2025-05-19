@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using SocialApp.DTOs;
 using SocialApp.Models;
 
@@ -7,14 +8,24 @@ namespace SocialApp.Services.Email;
 public class EmailVerificationService : IEmailVerificationService
 {
     private readonly SocialMediaDbContext _context;
+    private readonly IConfiguration _configuration;
     private readonly ILogger<EmailVerificationService> _logger;
+    private readonly IEmailService _emailService;
+    private readonly bool _isDevelopment;
 
     public EmailVerificationService(
         SocialMediaDbContext context,
-        ILogger<EmailVerificationService> logger)
+        IConfiguration configuration,
+        ILogger<EmailVerificationService> logger,
+        IEmailService emailService)
     {
         _context = context;
+        _configuration = configuration;
         _logger = logger;
+        _emailService = emailService;
+        
+        // Determine environment
+        _isDevelopment = _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
     }
 
     // Helper method to generate a random 6-digit code
@@ -23,37 +34,54 @@ public class EmailVerificationService : IEmailVerificationService
         // Generate a 6-digit random code
         Random random = new Random();
         return random.Next(100000, 999999).ToString();
-    }
-
-    // Helper method to check if email format is valid
+    }    // Helper method to check if email format is valid
     private bool IsValidEmailFormat(string email)
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(email))
+                return false;
+
+            // Basic validation with MailAddress
             var addr = new System.Net.Mail.MailAddress(email);
-            return addr.Address == email;
+            if (addr.Address != email)
+                return false;
+
+            // Check if domain part exists and has at least one dot
+            var parts = email.Split('@');
+            if (parts.Length != 2) 
+                return false;
+                
+            var domain = parts[1];
+            if (!domain.Contains('.') || domain.EndsWith('.'))
+                return false;
+                
+            // Check for minimum lengths
+            if (parts[0].Length < 1 || domain.Length < 3)
+                return false;
+                
+            return true;
         }
         catch
         {
             return false;
         }
     }
-    
-    // Implementation of email verification method
-    public async Task<(bool IsValid, bool Exists, string Message)> VerifyEmailAsync(string email)
+      // Implementation of email verification method
+    public Task<(bool IsValid, bool Exists, string Message)> VerifyEmailAsync(string email)
     {
         // Basic validation of email format
         if (!IsValidEmailFormat(email))
         {
-            return (false, false, "Invalid email format");
+            return Task.FromResult((false, false, "Invalid email format"));
         }
         
         // In a real application, you might use an email validation service
         // For simplicity, we'll assume the email exists if it has a valid format
         // and is from a common domain
         
-        string domain = email.Split('@').LastOrDefault()?.ToLower();
-        bool likelyExists = domain != null && (
+        string domain = email.Split('@').LastOrDefault()?.ToLower() ?? string.Empty;
+        bool likelyExists = !string.IsNullOrEmpty(domain) && (
             domain.Contains("gmail.com") || 
             domain.Contains("yahoo.com") || 
             domain.Contains("outlook.com") ||
@@ -61,10 +89,9 @@ public class EmailVerificationService : IEmailVerificationService
             domain.Contains("mail.com")
         );
         
-        return (true, likelyExists, likelyExists ? "Email likely exists" : "Email may not exist");
+        return Task.FromResult((true, likelyExists, likelyExists ? "Email likely exists" : "Email may not exist"));
     }
-    
-    // Send verification code to user's email
+      // Send verification code to user's email
     public async Task<(bool Success, string Message)> SendVerificationCodeAsync(string email)
     {
         try
@@ -127,15 +154,22 @@ public class EmailVerificationService : IEmailVerificationService
                 };
                 
                 await _context.EmailVerificationCodes.AddAsync(newVerificationCode);
-            }
-            
-            await _context.SaveChangesAsync();
+            }            await _context.SaveChangesAsync();
             
             // TODO: Send email with verification code
             // For now, just log the code (in a real application, you would use an email service)
             _logger.LogInformation("Verification code for {Email}: {Code}", email, verificationCode);
             
-            return (true, "Mã xác nhận đã được gửi đến email của bạn");
+            if (_isDevelopment)
+            {
+                // For development, return the code directly in the message
+                return (true, $"Mã xác nhận cho email {email}: {verificationCode}");
+            }
+            else
+            {
+                // For production, just inform that the code was sent to email
+                return (true, "Mã xác nhận đã được gửi đến email của bạn");
+            }
         }
         catch (Exception ex)
         {
@@ -228,15 +262,22 @@ public class EmailVerificationService : IEmailVerificationService
                 };
                 
                 await _context.EmailVerificationCodes.AddAsync(newVerificationCode);
-            }
-            
-            await _context.SaveChangesAsync();
+            }            await _context.SaveChangesAsync();
             
             // TODO: Send email with verification code
             // For now, just log the code (in a real application, you would use an email service)
             _logger.LogInformation("Password reset verification code for {Email}: {Code}", email, verificationCode);
             
-            return (true, "Mã xác nhận đã được gửi đến email của bạn");
+            if (_isDevelopment)
+            {
+                // For development, return the code directly in the message
+                return (true, $"Mã xác nhận đặt lại mật khẩu cho email {email}: {verificationCode}");
+            }
+            else
+            {
+                // For production, just inform that the code was sent to email
+                return (true, "Mã xác nhận đã được gửi đến email của bạn");
+            }
         }
         catch (Exception ex)
         {

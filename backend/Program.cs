@@ -82,6 +82,7 @@ builder.Services.AddDbContext<SocialApp.Models.SocialMediaDbContext>(options =>
 builder.Services.AddScoped<IUserAccountService, UserAccountService>();
 builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 // AuthService và EmailVerificationCodeService đã được loại bỏ vì không cần thiết
 
 // Add HttpClient for external API calls with proper timeout and resilience

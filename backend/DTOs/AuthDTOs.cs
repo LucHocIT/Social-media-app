@@ -117,3 +117,41 @@ public class VerifiedRegisterDTO
     [StringLength(50)]
     public string? LastName { get; set; }
 }
+
+public class ForgotPasswordDTO
+{
+    [Required]
+    [EmailAddress]
+    public string Email { get; set; } = string.Empty;
+}
+
+public class VerifyResetCodeDTO
+{
+    [Required]
+    [EmailAddress]
+    public string Email { get; set; } = string.Empty;
+    
+    [Required]
+    [StringLength(6, MinimumLength = 6)]
+    public string Code { get; set; } = string.Empty;
+}
+
+public class ResetPasswordDTO
+{
+    [Required]
+    [EmailAddress]
+    public string Email { get; set; } = string.Empty;
+    
+    [Required]
+    [StringLength(6, MinimumLength = 6)]
+    public string Code { get; set; } = string.Empty;
+    
+    [Required]
+    [StringLength(50, MinimumLength = 6)]
+    public string NewPassword { get; set; } = string.Empty;
+    
+    [Required]
+    [StringLength(50, MinimumLength = 6)]
+    [Compare("NewPassword", ErrorMessage = "Passwords do not match")]
+    public string ConfirmPassword { get; set; } = string.Empty;
+}

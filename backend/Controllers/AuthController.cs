@@ -342,4 +342,73 @@ public class AuthController : ControllerBase
         // This is just a redirect to maintain backward compatibility
         return RedirectToAction(nameof(RegisterVerified));
     }
+    
+    [HttpPost("forgotPassword")]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordDTO forgotPasswordDto)
+    {
+        try
+        {
+            _logger.LogInformation("Password reset requested for: {Email}", forgotPasswordDto.Email);
+            
+            var (success, message) = await _authService.SendPasswordResetCodeAsync(forgotPasswordDto.Email);
+            
+            if (!success)
+            {
+                return BadRequest(new { success = false, message });
+            }
+            
+            return Ok(new { success = true, message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error processing forgot password request for {Email}", forgotPasswordDto?.Email);
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+    
+    [HttpPost("verifyResetCode")]
+    public async Task<IActionResult> VerifyResetCode([FromBody] VerifyResetCodeDTO verifyResetCodeDto)
+    {
+        try
+        {
+            _logger.LogInformation("Verifying reset code for: {Email}", verifyResetCodeDto.Email);
+            
+            var (success, message) = await _authService.VerifyPasswordResetCodeAsync(verifyResetCodeDto.Email, verifyResetCodeDto.Code);
+            
+            if (!success)
+            {
+                return BadRequest(new { success = false, message });
+            }
+            
+            return Ok(new { success = true, message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error verifying reset code for {Email}", verifyResetCodeDto?.Email);
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+    
+    [HttpPost("resetPassword")]
+    public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordDTO resetPasswordDto)
+    {
+        try
+        {
+            _logger.LogInformation("Resetting password for: {Email}", resetPasswordDto.Email);
+            
+            var (success, message) = await _authService.ResetPasswordAsync(resetPasswordDto);
+            
+            if (!success)
+            {
+                return BadRequest(new { success = false, message });
+            }
+            
+            return Ok(new { success = true, message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resetting password for {Email}", resetPasswordDto?.Email);
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
 }

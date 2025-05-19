@@ -19,4 +19,9 @@ public interface IAuthService
     Task<bool> SoftDeleteUserAsync(int userId);
     Task<bool> RestoreUserAsync(int userId);
     Task<UserResponseDTO?> GetUserByIdAsync(int userId);
+    
+    // Password reset methods
+    Task<(bool Success, string Message)> SendPasswordResetCodeAsync(string email);
+    Task<(bool Success, string Message)> VerifyPasswordResetCodeAsync(string email, string code);
+    Task<(bool Success, string Message)> ResetPasswordAsync(ResetPasswordDTO resetPasswordDto);
 }

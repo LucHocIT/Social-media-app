@@ -9,4 +9,10 @@ public interface IAuthService
     Task<(AuthResponseDTO? Result, bool Success, string? ErrorMessage)> LoginAsync(LoginUserDTO loginDto);
     Task<bool> EmailExistsAsync(string email);
     string GenerateJwtToken(User user);
+    
+    // New methods for user role management
+    Task<bool> SetUserRoleAsync(int userId, string role);
+    Task<bool> SoftDeleteUserAsync(int userId);
+    Task<bool> RestoreUserAsync(int userId);
+    Task<UserResponseDTO?> GetUserByIdAsync(int userId);
 }

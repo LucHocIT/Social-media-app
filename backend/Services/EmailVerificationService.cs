@@ -32,21 +32,20 @@ public class EmailVerificationService : IEmailVerificationService
                     Message = "Invalid email format"
                 };
             }
-            
-            // In development mode or any environment when API calls might be unstable,
-            // just validate the email format without calling the external API
+              // In development mode or any environment when API calls might be unstable,
+            // We're going to use the API for verification even in development mode
             var isDevelopment = _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
-            // Always consider the email valid and exists in development mode
-            if (isDevelopment)
-            {
-                _logger.LogInformation("Development environment detected - bypassing external API validation for {Email}", email);
-                return new EmailVerificationResult
-                {
-                    IsValid = true,
-                    Exists = true,
-                    Message = "Development mode - email format is valid"
-                };
-            }
+            // No longer bypassing email verification in development mode
+            // if (isDevelopment)
+            // {
+            //     _logger.LogInformation("Development environment detected - bypassing external API validation for {Email}", email);
+            //     return new EmailVerificationResult
+            //     {
+            //         IsValid = true,
+            //         Exists = true,
+            //         Message = "Development mode - email format is valid"
+            //     };
+            // }
             
             // Get API key from configuration
             var apiKey = _configuration["EmailVerification:ApiKey"];
@@ -111,38 +110,36 @@ public class EmailVerificationService : IEmailVerificationService
                         Exists = isMxValid && (isDeliverable || isSmtpValid),
                         Message = verificationResponse.Deliverability
                     };
-                }
-                else
+                }                else
                 {
                     _logger.LogError("Email verification API returned status code: {StatusCode}", response.StatusCode);
-                    // Assume the email is valid and exists when API check fails
+                    // Don't assume the email exists when API check fails
                     return new EmailVerificationResult 
                     { 
                         IsValid = true, // Email has valid format (already checked above)
-                        Exists = true,  // CHANGED: Assume email exists to allow registration to proceed
+                        Exists = false, // Don't assume email exists when API fails
                         Message = "Could not verify email existence (API error)" 
                     };
                 }
-            }
-            catch (OperationCanceledException)
+            }            catch (OperationCanceledException)
             {
                 _logger.LogWarning("Email verification API request timed out for {Email}", email);
-                // Assume the email is valid and exists when API times out
+                // Don't assume the email exists when API times out
                 return new EmailVerificationResult 
                 { 
                     IsValid = true,
-                    Exists = true,
-                    Message = "Email verification timed out, proceeding with registration" 
+                    Exists = false,
+                    Message = "Email verification timed out" 
                 };
             }
             catch (Exception apiEx)
             {
                 _logger.LogError(apiEx, "API error when verifying email {Email}", email);
-                // Assume the email is valid and exists when API check fails
+                // Don't assume the email exists when API check fails
                 return new EmailVerificationResult 
                 { 
                     IsValid = true, // Email has valid format (already checked above)
-                    Exists = true,  // CHANGED: Assume email exists to allow registration to proceed
+                    Exists = false, // Don't assume email exists when API fails
                     Message = "Could not verify email existence (API error)" 
                 };
             }

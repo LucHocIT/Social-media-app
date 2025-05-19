@@ -50,45 +50,36 @@ public class AuthService : IAuthService
             {
                 _logger.LogWarning("Invalid email format detected locally: {Email}", registerDto.Email);
                 throw new Exception("Email không hợp lệ, vui lòng kiểm tra lại");
-            }
-
-            bool skipExternalVerification = _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
+            }            // Không bỏ qua việc xác thực email ngay cả khi ở môi trường Development
+            // bool skipExternalVerification = _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
             
-            // If not in development mode, try to verify the email with external service
-            if (!skipExternalVerification)
+            // Always verify email regardless of environment
+            try
             {
-                try
+                _logger.LogInformation("Attempting to verify email with external service: {Email}", registerDto.Email);
+                // Verify if the email is valid and exists with a short timeout
+                var emailVerification = await _emailVerificationService.VerifyEmailAsync(registerDto.Email);
+                
+                if (!emailVerification.IsValid)
                 {
-                    _logger.LogInformation("Attempting to verify email with external service: {Email}", registerDto.Email);
-                    // Verify if the email is valid and exists with a short timeout
-                    var emailVerification = await _emailVerificationService.VerifyEmailAsync(registerDto.Email);
-                    
-                    if (!emailVerification.IsValid)
-                    {
-                        _logger.LogWarning("Invalid email format: {Email}", registerDto.Email);
-                        throw new Exception("Email không hợp lệ, vui lòng kiểm tra lại");
-                    }
+                    _logger.LogWarning("Invalid email format: {Email}", registerDto.Email);
+                    throw new Exception("Email không hợp lệ, vui lòng kiểm tra lại");
+                }
 
-                    if (!emailVerification.Exists)
-                    {
-                        _logger.LogWarning("Email does not exist or is not deliverable: {Email}, Message: {Message}", 
-                            registerDto.Email, emailVerification.Message);
-                        throw new Exception("Email không tồn tại hoặc không thể gửi thư đến địa chỉ này");
-                    }
-                    
-                    _logger.LogInformation("Email verification successful for: {Email}", registerDto.Email);
-                }
-                catch (Exception verificationEx)
+                if (!emailVerification.Exists)
                 {
-                    // Log the error but continue with registration
-                    _logger.LogWarning(verificationEx, "Email verification service failed, proceeding with registration anyway for: {Email}", 
-                        registerDto.Email);
-                    // We don't rethrow the exception to allow registration to continue
+                    _logger.LogWarning("Email does not exist or is not deliverable: {Email}, Message: {Message}", 
+                        registerDto.Email, emailVerification.Message);
+                    throw new Exception("Email không tồn tại hoặc không thể gửi thư đến địa chỉ này");
                 }
+                
+                _logger.LogInformation("Email verification successful for: {Email}", registerDto.Email);
             }
-            else
+            catch (Exception verificationEx)
             {
-                _logger.LogInformation("Development mode - skipping external email verification for: {Email}", registerDto.Email);
+                // Log the error and throw exception to prevent registration with invalid email
+                _logger.LogError(verificationEx, "Email verification service failed for: {Email}", registerDto.Email);
+                throw new Exception("Không thể xác minh email. Vui lòng thử lại sau hoặc sử dụng email khác.");
             }
         }
         catch (Exception ex)
@@ -106,6 +97,8 @@ public class AuthService : IAuthService
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(registerDto.Password),
             FirstName = registerDto.FirstName,
             LastName = registerDto.LastName,
+            Role = "User", // Default role is User
+            IsDeleted = false, 
             CreatedAt = DateTime.UtcNow,
             LastActive = DateTime.UtcNow
         };
@@ -134,6 +127,13 @@ public class AuthService : IAuthService
             return (null, false, "Username hoặc mật khẩu không chính xác");
         }
 
+        // Check if user is deleted
+        if (user.IsDeleted)
+        {
+            _logger.LogInformation("Đăng nhập thất bại cho username: {Username} - tài khoản đã bị xóa", loginDto.Username);
+            return (null, false, "Tài khoản đã bị xóa");
+        }
+
         // Cập nhật thời gian hoạt động cuối
         user.LastActive = DateTime.UtcNow;
         await _context.SaveChangesAsync();
@@ -160,7 +160,8 @@ public class AuthService : IAuthService
             Subject = new ClaimsIdentity(new[]
             {
                 new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
-                new Claim(ClaimTypes.Name, user.Username)
+                new Claim(ClaimTypes.Name, user.Username),
+                new Claim(ClaimTypes.Role, user.Role)
             }),
             Expires = DateTime.UtcNow.AddDays(7),
             SigningCredentials = new SigningCredentials(
@@ -184,6 +185,8 @@ public class AuthService : IAuthService
             LastName = user.LastName,
             Bio = user.Bio,
             ProfilePictureUrl = user.ProfilePictureUrl,
+            Role = user.Role,
+            IsDeleted = user.IsDeleted,
             CreatedAt = user.CreatedAt,
             LastActive = user.LastActive
         };
@@ -200,5 +203,75 @@ public class AuthService : IAuthService
         {
             return false;
         }
+    }
+
+    // New methods for user role management
+    public async Task<bool> SetUserRoleAsync(int userId, string role)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+        {
+            _logger.LogWarning("SetUserRoleAsync failed: User with ID {UserId} not found", userId);
+            return false;
+        }
+
+        // Allow only valid roles
+        if (role != "Admin" && role != "User")
+        {
+            _logger.LogWarning("SetUserRoleAsync failed: Invalid role {Role} for user {UserId}", role, userId);
+            return false;
+        }
+
+        user.Role = role;
+        await _context.SaveChangesAsync();
+        
+        _logger.LogInformation("User {UserId} role set to {Role}", userId, role);
+        return true;
+    }
+
+    public async Task<bool> SoftDeleteUserAsync(int userId)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+        {
+            _logger.LogWarning("SoftDeleteUserAsync failed: User with ID {UserId} not found", userId);
+            return false;
+        }
+
+        user.IsDeleted = true;
+        user.DeletedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+        
+        _logger.LogInformation("User {UserId} soft deleted", userId);
+        return true;
+    }
+
+    public async Task<bool> RestoreUserAsync(int userId)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+        {
+            _logger.LogWarning("RestoreUserAsync failed: User with ID {UserId} not found", userId);
+            return false;
+        }
+
+        user.IsDeleted = false;
+        user.DeletedAt = null;
+        await _context.SaveChangesAsync();
+        
+        _logger.LogInformation("User {UserId} restored", userId);
+        return true;
+    }
+
+    public async Task<UserResponseDTO?> GetUserByIdAsync(int userId)
+    {
+        var user = await _context.Users.FindAsync(userId);
+        if (user == null)
+        {
+            _logger.LogWarning("GetUserByIdAsync: User with ID {UserId} not found", userId);
+            return null;
+        }
+
+        return MapUserToUserResponseDto(user);
     }
 }

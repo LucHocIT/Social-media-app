@@ -21,6 +21,12 @@ public partial class User
 
     public string? ProfilePictureUrl { get; set; }
 
+    public string Role { get; set; } = "User"; // Default role is User, can be Admin
+
+    public bool IsDeleted { get; set; } = false; // Field for soft delete
+
+    public DateTime? DeletedAt { get; set; } // When the user was soft deleted
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime? LastActive { get; set; }

@@ -6,6 +6,7 @@ using Polly;
 using Polly.Extensions.Http;
 using SocialApp.Models;
 using SocialApp.Services;
+using Microsoft.OpenApi.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -14,6 +15,46 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
+
+// Thêm cấu hình Swagger
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { 
+        Title = "Social App API", 
+        Version = "v1",
+        Description = "API cho ứng dụng mạng xã hội SocialApp",
+        Contact = new OpenApiContact
+        {
+            Name = "Social App Team",
+            Email = "contact@socialapp.example.com"
+        }
+    });
+    
+    // Cấu hình xác thực JWT cho Swagger
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
 
 // Add CORS policy
 builder.Services.AddCors(options =>
@@ -97,19 +138,21 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Social App API v1");
+        c.RoutePrefix = "swagger";
+    });
 }
 
-// Sử dụng CORS trước các middleware khác
+// Add CORS middleware
 app.UseCors("AllowFrontend");
 
-app.UseHttpsRedirection();
-
-// Sử dụng middleware authentication và authorization
+// Add Authentication middleware
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Map controllers
 app.MapControllers();
 
 app.Run();

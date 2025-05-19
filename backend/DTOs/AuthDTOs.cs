@@ -44,6 +44,8 @@ public class UserResponseDTO
     public string? LastName { get; set; }
     public string? Bio { get; set; }
     public string? ProfilePictureUrl { get; set; }
+    public string Role { get; set; } = string.Empty; // Added Role property
+    public bool IsDeleted { get; set; } // Added IsDeleted property
     public DateTime CreatedAt { get; set; }
     public DateTime? LastActive { get; set; }
 }

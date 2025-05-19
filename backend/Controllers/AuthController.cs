@@ -96,16 +96,14 @@ public class AuthController : ControllerBase
             {
                 _logger.LogInformation("Email {Email} already exists in database", verifyEmailDto.Email);
                 return BadRequest(new { isValid = false, message = "Email already in use" });
-            }
-
-            // Skip external verification in development mode
-            var isDevelopment = _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
-            if (isDevelopment)
-            {
-                _logger.LogInformation("Development environment - skipping external email verification for {Email}", verifyEmailDto.Email);
-                return Ok(new { isValid = true, message = "Email is valid (development mode)" });
-            }
-
+            }            // Comment out this section to enable email verification even in development mode
+            // var isDevelopment = _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
+            // if (isDevelopment)
+            // {
+            //     _logger.LogInformation("Development environment - skipping external email verification for {Email}", verifyEmailDto.Email);
+            //     return Ok(new { isValid = true, message = "Email is valid (development mode)" });
+            // }
+            
             try 
             {
                 // Verify email format and existence using the external service with timeout handling
@@ -132,9 +130,12 @@ public class AuthController : ControllerBase
             }
             catch (Exception ex)
             {
-                // Log the error but allow verification to proceed
-                _logger.LogWarning(ex, "External email verification service failed for {Email}, proceeding anyway", verifyEmailDto.Email);
-                // Continue with basic validation passed
+                // Log the error and don't allow verification to proceed with potentially invalid emails
+                _logger.LogWarning(ex, "External email verification service failed for {Email}", verifyEmailDto.Email);
+                return BadRequest(new { 
+                    isValid = false, 
+                    message = "Could not verify email. Please try again later or contact support."
+                });
             }
 
             return Ok(new { isValid = true, message = "Email is valid" });
@@ -156,5 +157,81 @@ public class AuthController : ControllerBase
         _logger.LogInformation("User {Username} (ID: {UserId}) logged out", username, userId);
         
         return Ok(new { message = "Đăng xuất thành công" });
+    }
+
+    // Admin endpoints for user management
+
+    [HttpPut("users/{userId}/role")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult> SetUserRole(int userId, [FromBody] SetUserRoleDTO roleDto)
+    {
+        _logger.LogInformation("Admin attempting to change role for User ID: {UserId} to {Role}", userId, roleDto.Role);
+        
+        // Don't allow changing own role
+        if (User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value == userId.ToString())
+        {
+            _logger.LogWarning("Admin attempted to change their own role");
+            return BadRequest(new { message = "Không thể thay đổi vai trò của chính mình" });
+        }
+        
+        var result = await _authService.SetUserRoleAsync(userId, roleDto.Role);
+        if (!result)
+        {
+            return NotFound(new { message = "Không tìm thấy người dùng hoặc vai trò không hợp lệ" });
+        }
+        
+        return Ok(new { message = $"Đã thiết lập vai trò {roleDto.Role} cho người dùng" });
+    }
+
+    [HttpDelete("users/{userId}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult> DeleteUser(int userId)
+    {
+        _logger.LogInformation("Admin attempting to soft delete User ID: {UserId}", userId);
+        
+        // Don't allow deleting self
+        if (User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value == userId.ToString())
+        {
+            _logger.LogWarning("Admin attempted to delete themselves");
+            return BadRequest(new { message = "Không thể xóa tài khoản của chính mình" });
+        }
+        
+        var result = await _authService.SoftDeleteUserAsync(userId);
+        if (!result)
+        {
+            return NotFound(new { message = "Không tìm thấy người dùng" });
+        }
+        
+        return Ok(new { message = "Người dùng đã bị xóa tạm thời" });
+    }
+
+    [HttpPost("users/{userId}/restore")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult> RestoreUser(int userId)
+    {
+        _logger.LogInformation("Admin attempting to restore User ID: {UserId}", userId);
+        
+        var result = await _authService.RestoreUserAsync(userId);
+        if (!result)
+        {
+            return NotFound(new { message = "Không tìm thấy người dùng" });
+        }
+        
+        return Ok(new { message = "Người dùng đã được khôi phục" });
+    }
+
+    [HttpGet("users/{userId}")]
+    [Authorize(Roles = "Admin")]
+    public async Task<ActionResult<UserResponseDTO>> GetUser(int userId)
+    {
+        _logger.LogInformation("Admin requesting details for User ID: {UserId}", userId);
+        
+        var user = await _authService.GetUserByIdAsync(userId);
+        if (user == null)
+        {
+            return NotFound(new { message = "Không tìm thấy người dùng" });
+        }
+        
+        return Ok(user);
     }
 }

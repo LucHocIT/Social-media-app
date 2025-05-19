@@ -89,13 +89,12 @@ public class EmailVerificationService : IEmailVerificationService
                         // Consider the email valid but not verified
                         return new EmailVerificationResult { IsValid = true, Exists = true, Message = "Could not verify email existence" };
                     }
-                    
-                    // Extract useful information from the API response
-                    bool isValidSyntax = verificationResponse.IsValidFormat == "true";
-                    bool isSuspicious = verificationResponse.IsDisposableEmail == "true"; // Only consider disposable emails suspicious
-                    bool isMxValid = verificationResponse.IsMxFound == "true"; // Check if domain has MX records
+                      // Extract useful information from the API response
+                    bool isValidSyntax = verificationResponse.IsValidFormat?.Value ?? false;
+                    bool isSuspicious = verificationResponse.IsDisposableEmail?.Value ?? false; // Only consider disposable emails suspicious
+                    bool isMxValid = verificationResponse.IsMxFound?.Value ?? false; // Check if domain has MX records
                     bool isDeliverable = verificationResponse.Deliverability == "DELIVERABLE";
-                    bool isSmtpValid = verificationResponse.IsSmtpValid == "true";
+                    bool isSmtpValid = verificationResponse.IsSmtpValid?.Value ?? false;
                     
                     // Log details for debugging
                     _logger.LogInformation(
@@ -167,9 +166,7 @@ public class EmailVerificationService : IEmailVerificationService
         {
             return false;
         }
-    }
-
-    // Response class structured to match the Abstract API email validation response
+    }    // Response class structured to match the Abstract API email validation response
     private class EmailVerificationApiResponse
     {
         [JsonPropertyName("email")]
@@ -182,24 +179,33 @@ public class EmailVerificationService : IEmailVerificationService
         public string? QualityScore { get; set; }
         
         [JsonPropertyName("is_valid_format")]
-        public string? IsValidFormat { get; set; }
+        public ValidFormatProperty? IsValidFormat { get; set; }
         
         [JsonPropertyName("is_free_email")]
-        public string? IsFreeEmail { get; set; }
+        public ValidFormatProperty? IsFreeEmail { get; set; }
         
         [JsonPropertyName("is_disposable_email")]
-        public string? IsDisposableEmail { get; set; }
+        public ValidFormatProperty? IsDisposableEmail { get; set; }
         
         [JsonPropertyName("is_role_email")]
-        public string? IsRoleEmail { get; set; }
+        public ValidFormatProperty? IsRoleEmail { get; set; }
         
         [JsonPropertyName("is_catchall_email")]
-        public string? IsCatchallEmail { get; set; }
+        public ValidFormatProperty? IsCatchallEmail { get; set; }
         
         [JsonPropertyName("is_mx_found")]
-        public string? IsMxFound { get; set; }
+        public ValidFormatProperty? IsMxFound { get; set; }
         
         [JsonPropertyName("is_smtp_valid")]
-        public string? IsSmtpValid { get; set; }
+        public ValidFormatProperty? IsSmtpValid { get; set; }
+    }
+    
+    private class ValidFormatProperty
+    {
+        [JsonPropertyName("value")]
+        public bool Value { get; set; }
+        
+        [JsonPropertyName("text")]
+        public string? Text { get; set; }
     }
 }

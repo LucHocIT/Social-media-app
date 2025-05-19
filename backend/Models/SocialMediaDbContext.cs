@@ -116,6 +116,8 @@ public partial class SocialMediaDbContext : DbContext
 
             entity.Property(e => e.Email).HasMaxLength(100);
             entity.Property(e => e.Username).HasMaxLength(50);
+            entity.Property(e => e.Role).HasMaxLength(20).HasDefaultValue("User");
+            entity.Property(e => e.IsDeleted).HasDefaultValue(false);
         });
 
         modelBuilder.Entity<UserFollower>(entity =>

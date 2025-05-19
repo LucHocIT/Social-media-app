@@ -62,3 +62,11 @@ public class VerifyEmailDTO
     [EmailAddress]
     public string Email { get; set; } = string.Empty;
 }
+
+public class SetUserRoleDTO
+{
+    [Required]
+    [StringLength(20)]
+    [RegularExpression("^(Admin|User)$", ErrorMessage = "Role must be either 'Admin' or 'User'")]
+    public string Role { get; set; } = "User";
+}

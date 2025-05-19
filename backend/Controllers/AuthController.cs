@@ -23,14 +23,13 @@ public class AuthController : ControllerBase
         _logger = logger;
         _emailVerificationService = emailVerificationService;
         _configuration = configuration;
-    }
-
-    [HttpPost("register")]
-    public async Task<ActionResult<AuthResponseDTO>> Register(RegisterUserDTO registerDto)
+    }    [HttpPost("register/legacy")]
+    [ApiExplorerSettings(IgnoreApi = true)] // Hide this from Swagger/UI as we're now using the verified registration flow
+    public async Task<ActionResult<AuthResponseDTO>> RegisterLegacy(RegisterUserDTO registerDto)
     {
         try
         {
-            _logger.LogInformation("Registering new user: {Username}, Email: {Email}", 
+            _logger.LogInformation("Registering new user (legacy): {Username}, Email: {Email}", 
                 registerDto.Username, registerDto.Email);
                 
             if (registerDto == null)
@@ -233,5 +232,114 @@ public class AuthController : ControllerBase
         }
         
         return Ok(user);
+    }
+      [HttpPost("register/verified")]
+    public async Task<ActionResult<AuthResponseDTO>> RegisterVerified(RegisterWithVerificationDTO registerDto)
+    {
+        try
+        {
+            _logger.LogInformation("Registering new user with verification: {Username}, Email: {Email}", 
+                registerDto.Username, registerDto.Email);
+                
+            if (registerDto == null)
+            {
+                _logger.LogWarning("Registration data is null");
+                return BadRequest(new { message = "Registration data cannot be empty" });
+            }
+            
+            // Log received data for debugging
+            _logger.LogInformation("Registration data: Username={Username}, Email={Email}, " +
+                "FirstName={FirstName}, LastName={LastName}",
+                registerDto.Username, registerDto.Email, registerDto.FirstName, registerDto.LastName);
+                
+            var result = await _authService.RegisterAsync(registerDto);
+            _logger.LogInformation("User registered successfully: {Username}", registerDto.Username);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during registration for user {Username}", registerDto?.Username);
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+    
+    [HttpPost("sendVerificationCode")]
+    public async Task<IActionResult> SendVerificationCode([FromBody] SendVerificationCodeDTO sendVerificationCodeDto)
+    {
+        try
+        {
+            _logger.LogInformation("Sending verification code to: {Email}", sendVerificationCodeDto.Email);
+            
+            var (success, message) = await _authService.SendVerificationCodeAsync(sendVerificationCodeDto.Email);
+            
+            if (!success)
+            {
+                return BadRequest(new { success = false, message });
+            }
+            
+            return Ok(new { success = true, message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending verification code to {Email}", sendVerificationCodeDto?.Email);
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+      [HttpPost("verifyCode")]
+    public async Task<IActionResult> VerifyCode([FromBody] VerifyCodeDTO verifyCodeDto)
+    {
+        try
+        {
+            _logger.LogInformation("Verifying code for: {Email}", verifyCodeDto.Email);
+            
+            var (success, message) = await _authService.VerifyCodeAsync(verifyCodeDto.Email, verifyCodeDto.Code);
+            
+            if (!success)
+            {
+                return BadRequest(new { success = false, message });
+            }
+            
+            return Ok(new { 
+                success = true, 
+                message,
+                readyForRegistration = true,
+                email = verifyCodeDto.Email
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error verifying code for {Email}", verifyCodeDto?.Email);
+            return BadRequest(new { success = false, message = ex.Message });
+        }
+    }
+      [HttpPost("verifyAndRegister")]
+    public async Task<ActionResult<AuthResponseDTO>> VerifyAndRegister([FromBody] VerifiedRegisterDTO registerDto)
+    {
+        try
+        {
+            _logger.LogInformation("Registering verified user: {Email}", registerDto.Email);
+            
+            if (registerDto == null)
+            {
+                _logger.LogWarning("Registration data is null");
+                return BadRequest(new { message = "Registration data cannot be empty" });
+            }
+            
+            var result = await _authService.RegisterVerifiedUserAsync(registerDto);
+            _logger.LogInformation("User registered successfully after verification: {Username}", registerDto.Username);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during verification and registration for user {Username}", registerDto?.Username);
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    [HttpPost("register")]
+    public ActionResult RedirectToVerifiedRegistration()
+    {
+        // This is just a redirect to maintain backward compatibility
+        return RedirectToAction(nameof(RegisterVerified));
     }
 }

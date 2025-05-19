@@ -9,6 +9,10 @@ public interface IAuthService
     Task<(AuthResponseDTO? Result, bool Success, string? ErrorMessage)> LoginAsync(LoginUserDTO loginDto);
     Task<bool> EmailExistsAsync(string email);
     string GenerateJwtToken(User user);
+      // Email verification methods
+    Task<(bool Success, string Message)> SendVerificationCodeAsync(string email);
+    Task<(bool Success, string Message)> VerifyCodeAsync(string email, string code);
+    Task<AuthResponseDTO> RegisterVerifiedUserAsync(VerifiedRegisterDTO registerDto);
     
     // New methods for user role management
     Task<bool> SetUserRoleAsync(int userId, string role);

@@ -70,3 +70,50 @@ public class SetUserRoleDTO
     [RegularExpression("^(Admin|User)$", ErrorMessage = "Role must be either 'Admin' or 'User'")]
     public string Role { get; set; } = "User";
 }
+
+public class SendVerificationCodeDTO
+{
+    [Required]
+    [EmailAddress]
+    public string Email { get; set; } = string.Empty;
+}
+
+public class VerifyCodeDTO
+{
+    [Required]
+    [EmailAddress]
+    public string Email { get; set; } = string.Empty;
+    
+    [Required]
+    [StringLength(6, MinimumLength = 6)]
+    public string Code { get; set; } = string.Empty;
+}
+
+public class RegisterWithVerificationDTO : RegisterUserDTO
+{
+    [Required]
+    [StringLength(6, MinimumLength = 6)]
+    public string VerificationCode { get; set; } = string.Empty;
+}
+
+public class VerifiedRegisterDTO
+{
+    [Required]
+    [StringLength(50, MinimumLength = 3)]
+    public string Username { get; set; } = string.Empty;
+
+    [Required]
+    [EmailAddress]
+    [StringLength(100)]
+    public string Email { get; set; } = string.Empty;
+
+    [Required]
+    [StringLength(50, MinimumLength = 6)]
+    public string Password { get; set; } = string.Empty;
+
+    [StringLength(50)]
+    public string? FirstName { get; set; }
+
+    [StringLength(50)]
+    public string? LastName { get; set; }
+}

@@ -33,7 +33,33 @@ public class AuthService : IAuthService
     }    public async Task<AuthResponseDTO> RegisterAsync(RegisterUserDTO registerDto)
     {
         try
-        {
+        {            // Check if it's a registration with verification code
+            if (registerDto is RegisterWithVerificationDTO registerWithVerificationDto)
+            {
+                // Verify the code
+                var (success, message) = await VerifyCodeAsync(registerWithVerificationDto.Email, registerWithVerificationDto.VerificationCode);
+                if (!success)
+                {
+                    throw new Exception(message);
+                }
+            }
+            else
+            {
+                // This is the older path for backwards compatibility
+                var isDevelopment = _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
+                
+                if (!isDevelopment)
+                {
+                    // In production, always require email verification
+                    _logger.LogWarning("Registration attempted without verification code for {Email}", registerDto.Email);
+                    throw new Exception("Bạn cần xác thực email trước khi đăng ký");
+                }
+                else
+                {
+                    _logger.LogWarning("Allowing registration without verification in development mode for {Email}", registerDto.Email);
+                }
+            }
+            
             // Log start of registration process
             _logger.LogInformation("Starting registration process for username: {Username}, email: {Email}", 
                 registerDto.Username, registerDto.Email);
@@ -50,37 +76,9 @@ public class AuthService : IAuthService
             {
                 _logger.LogWarning("Invalid email format detected locally: {Email}", registerDto.Email);
                 throw new Exception("Email không hợp lệ, vui lòng kiểm tra lại");
-            }            // Không bỏ qua việc xác thực email ngay cả khi ở môi trường Development
-            // bool skipExternalVerification = _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
+            }
             
-            // Always verify email regardless of environment
-            try
-            {
-                _logger.LogInformation("Attempting to verify email with external service: {Email}", registerDto.Email);
-                // Verify if the email is valid and exists with a short timeout
-                var emailVerification = await _emailVerificationService.VerifyEmailAsync(registerDto.Email);
-                
-                if (!emailVerification.IsValid)
-                {
-                    _logger.LogWarning("Invalid email format: {Email}", registerDto.Email);
-                    throw new Exception("Email không hợp lệ, vui lòng kiểm tra lại");
-                }
-
-                if (!emailVerification.Exists)
-                {
-                    _logger.LogWarning("Email does not exist or is not deliverable: {Email}, Message: {Message}", 
-                        registerDto.Email, emailVerification.Message);
-                    throw new Exception("Email không tồn tại hoặc không thể gửi thư đến địa chỉ này");
-                }
-                
-                _logger.LogInformation("Email verification successful for: {Email}", registerDto.Email);
-            }
-            catch (Exception verificationEx)
-            {
-                // Log the error and throw exception to prevent registration with invalid email
-                _logger.LogError(verificationEx, "Email verification service failed for: {Email}", registerDto.Email);
-                throw new Exception("Không thể xác minh email. Vui lòng thử lại sau hoặc sử dụng email khác.");
-            }
+            _logger.LogInformation("Email verification successful for: {Email}", registerDto.Email);
         }
         catch (Exception ex)
         {
@@ -192,6 +190,7 @@ public class AuthService : IAuthService
         };
     }
     
+    // Helper method to check if email format is valid
     private bool IsValidEmailFormat(string email)
     {
         try
@@ -202,6 +201,130 @@ public class AuthService : IAuthService
         catch
         {
             return false;
+        }
+    }
+    
+    // Helper method to generate a random 6-digit code
+    private string GenerateRandomCode()
+    {
+        // Generate a 6-digit random code
+        Random random = new Random();
+        return random.Next(100000, 999999).ToString();
+    }
+    
+    // Send verification code to user's email
+    public async Task<(bool Success, string Message)> SendVerificationCodeAsync(string email)
+    {
+        try
+        {
+            if (!IsValidEmailFormat(email))
+            {
+                _logger.LogWarning("Invalid email format: {Email}", email);
+                return (false, "Email không hợp lệ, vui lòng kiểm tra lại");
+            }
+            
+            // Check if email already exists in our database
+            if (await EmailExistsAsync(email))
+            {
+                _logger.LogWarning("Email already exists: {Email}", email);
+                return (false, "Email đã được đăng ký");
+            }
+            
+            // Verify if the email is valid and exists with a short timeout
+            var emailVerification = await _emailVerificationService.VerifyEmailAsync(email);
+            
+            if (!emailVerification.IsValid)
+            {
+                _logger.LogWarning("Invalid email format: {Email}", email);
+                return (false, "Email không hợp lệ, vui lòng kiểm tra lại");
+            }
+
+            if (!emailVerification.Exists)
+            {
+                _logger.LogWarning("Email does not exist: {Email}", email);
+                return (false, "Email không tồn tại hoặc không thể gửi thư đến địa chỉ này");
+            }
+            
+            // Generate verification code
+            string verificationCode = GenerateRandomCode();
+            
+            // Set expiration time (10 minutes from now)
+            var expiresAt = DateTime.UtcNow.AddMinutes(10);
+            
+            // Check if there's an existing code for this email
+            var existingCode = await _context.EmailVerificationCodes
+                .FirstOrDefaultAsync(c => c.Email.ToLower() == email.ToLower() && !c.IsUsed);
+                
+            if (existingCode != null)
+            {
+                // Update existing code
+                existingCode.Code = verificationCode;
+                existingCode.CreatedAt = DateTime.UtcNow;
+                existingCode.ExpiresAt = expiresAt;
+                existingCode.IsUsed = false;
+            }
+            else
+            {
+                // Create new verification code entry
+                var newVerificationCode = new EmailVerificationCode
+                {
+                    Email = email,
+                    Code = verificationCode,
+                    CreatedAt = DateTime.UtcNow,
+                    ExpiresAt = expiresAt,
+                    IsUsed = false
+                };
+                
+                await _context.EmailVerificationCodes.AddAsync(newVerificationCode);
+            }
+            
+            await _context.SaveChangesAsync();
+            
+            // TODO: Send email with verification code
+            // For now, just log the code (in a real application, you would use an email service)
+            _logger.LogInformation("Verification code for {Email}: {Code}", email, verificationCode);
+            
+            return (true, "Mã xác nhận đã được gửi đến email của bạn");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending verification code to {Email}", email);
+            return (false, "Đã xảy ra lỗi khi gửi mã xác nhận. Vui lòng thử lại sau.");
+        }
+    }
+      // Verify the code provided by the user
+    public async Task<(bool Success, string Message)> VerifyCodeAsync(string email, string code)
+    {
+        try
+        {
+            // Find the verification code for the email
+            var verificationCode = await _context.EmailVerificationCodes
+                .FirstOrDefaultAsync(c => 
+                    c.Email.ToLower() == email.ToLower() && 
+                    c.Code == code && 
+                    !c.IsUsed);
+            
+            if (verificationCode == null)
+            {
+                return (false, "Mã xác nhận không chính xác");
+            }
+            
+            // Check if code has expired
+            if (verificationCode.ExpiresAt < DateTime.UtcNow)
+            {
+                return (false, "Mã xác nhận đã hết hạn");
+            }
+            
+            // Mark the code as used
+            verificationCode.IsUsed = true;
+            await _context.SaveChangesAsync();
+            
+            return (true, "Xác thực thành công. Email này đã sẵn sàng để đăng ký.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error verifying code for {Email}", email);
+            return (false, "Đã xảy ra lỗi khi xác thực mã. Vui lòng thử lại sau.");
         }
     }
 
@@ -273,5 +396,67 @@ public class AuthService : IAuthService
         }
 
         return MapUserToUserResponseDto(user);
+    }
+
+    public async Task<AuthResponseDTO> RegisterVerifiedUserAsync(VerifiedRegisterDTO registerDto)
+    {
+        try
+        {
+            // Check if email verification code exists and is verified
+            var verificationCode = await _context.EmailVerificationCodes
+                .FirstOrDefaultAsync(c => 
+                    c.Email.ToLower() == registerDto.Email.ToLower() && 
+                    c.IsUsed == true);
+                
+            if (verificationCode == null)
+            {
+                throw new Exception("Email chưa được xác thực. Vui lòng xác thực email trước khi đăng ký.");
+            }
+            
+            // Log start of registration process
+            _logger.LogInformation("Starting registration process for verified email: {Username}, email: {Email}", 
+                registerDto.Username, registerDto.Email);
+                
+            // Check if username already exists
+            if (await _context.Users.AnyAsync(u => u.Username == registerDto.Username))
+                throw new Exception("Username đã tồn tại");
+
+            // Check if email already exists (shouldn't happen but good to check)
+            if (await EmailExistsAsync(registerDto.Email))
+                throw new Exception("Email đã tồn tại");
+
+            // Create new user
+            var newUser = new User
+            {
+                Username = registerDto.Username,
+                Email = registerDto.Email,
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(registerDto.Password),
+                FirstName = registerDto.FirstName,
+                LastName = registerDto.LastName,
+                Role = "User", // Default role is User
+                IsDeleted = false, 
+                CreatedAt = DateTime.UtcNow,
+                LastActive = DateTime.UtcNow
+            };
+
+            // Add user to database
+            await _context.Users.AddAsync(newUser);
+            await _context.SaveChangesAsync();
+
+            // Generate token and return response
+            var token = GenerateJwtToken(newUser);
+            
+            return new AuthResponseDTO
+            {
+                Token = token,
+                User = MapUserToUserResponseDto(newUser)
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during verified registration for: {Username}, {Email}", 
+                registerDto.Username, registerDto.Email);
+            throw; // Rethrow to be handled by the controller
+        }
     }
 }

@@ -24,6 +24,8 @@ public partial class SocialMediaDbContext : DbContext
     public virtual DbSet<User> Users { get; set; }
 
     public virtual DbSet<UserFollower> UserFollowers { get; set; }
+    
+    public virtual DbSet<EmailVerificationCode> EmailVerificationCodes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

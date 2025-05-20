@@ -1,0 +1,82 @@
+{
+  "folders": [
+    {
+      "path": "."
+    }
+  ],
+  "settings": {
+    "editor.formatOnSave": true,
+    "dotnet.defaultSolution": "SocialApp.sln",
+    "files.exclude": {
+      "**/bin": true,
+      "**/obj": true
+    },
+    "omnisharp.enableRoslynAnalyzers": true,
+    "csharp.format.enable": true,
+    "dotnet.completion.showCompletionItemsFromUnimportedNamespaces": true
+  },
+  "extensions": {
+    "recommendations": [
+      "ms-dotnettools.csharp",
+      "kreativ-software.csharpextensions",
+      "ms-mssql.mssql",
+      "jmrog.vscode-nuget-package-manager",
+      "fernandoescolar.vscode-solution-explorer",
+      "formulahendry.dotnet-test-explorer"
+    ]
+  },
+  "launch": {
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": ".NET Core Launch (web)",
+        "type": "coreclr",
+        "request": "launch",
+        "preLaunchTask": "build",
+        "program": "${workspaceFolder}/bin/Debug/net9.0/SocialApp.dll",
+        "args": [],
+        "cwd": "${workspaceFolder}",
+        "stopAtEntry": false,
+        "serverReadyAction": {
+          "action": "openExternally",
+          "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+        },
+        "env": {
+          "ASPNETCORE_ENVIRONMENT": "Development"
+        },
+        "sourceFileMap": {
+          "/Views": "${workspaceFolder}/Views"
+        }
+      }
+    ]
+  },
+  "tasks": {
+    "version": "2.0.0",
+    "tasks": [
+      {
+        "label": "build",
+        "command": "dotnet",
+        "type": "process",
+        "args": [
+          "build",
+          "${workspaceFolder}/SocialApp.csproj",
+          "/property:GenerateFullPaths=true",
+          "/consoleloggerparameters:NoSummary"
+        ],
+        "problemMatcher": "$msCompile"
+      },
+      {
+        "label": "watch",
+        "command": "dotnet",
+        "type": "process",
+        "args": [
+          "watch",
+          "run",
+          "--project",
+          "${workspaceFolder}/SocialApp.csproj"
+        ],
+        "problemMatcher": "$msCompile"
+      }
+    ]
+  }
+}

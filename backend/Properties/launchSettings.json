@@ -1,5 +1,4 @@
-﻿{  "$schema": "https://json.schemastore.org/launchsettings.json",
-  "profiles": {
+﻿{  "$schema": "https://json.schemastore.org/launchsettings.json",  "profiles": {
     "http": {
       "commandName": "Project",
       "dotnetRunMessages": true,
@@ -7,7 +6,14 @@
       "launchUrl": "swagger",
       "applicationUrl": "http://localhost:5063",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Production",
+        "EMAIL_SMTP_SERVER": "smtp.gmail.com",
+        "EMAIL_SMTP_PORT": "587",
+        "EMAIL_USERNAME": "your-email@gmail.com",
+        "EMAIL_PASSWORD": "your-app-password",
+        "EMAIL_SENDER": "your-email@gmail.com",
+        "EMAIL_SENDER_NAME": "SocialApp",
+        "EMAIL_USE_SSL": "true"
       }
     },    "https": {
       "commandName": "Project",
@@ -16,7 +22,14 @@
       "launchUrl": "swagger",
       "applicationUrl": "https://localhost:7103;http://localhost:5063",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Production",
+        "EMAIL_SMTP_SERVER": "smtp.gmail.com",
+        "EMAIL_SMTP_PORT": "587",
+        "EMAIL_USERNAME": "your-email@gmail.com",
+        "EMAIL_PASSWORD": "your-app-password",
+        "EMAIL_SENDER": "your-email@gmail.com",
+        "EMAIL_SENDER_NAME": "SocialApp",
+        "EMAIL_USE_SSL": "true"
       }
     }
   }

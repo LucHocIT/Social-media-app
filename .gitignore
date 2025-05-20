@@ -8,6 +8,12 @@
 .vscode/
 .vs/
 
+# Environment variables & sensitive information
+.env
+.env.*
+!.env.template
+.history/
+
 # Build results
 [Dd]ebug/
 [Dd]ebugPublic/

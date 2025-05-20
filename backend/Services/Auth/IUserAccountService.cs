@@ -11,4 +11,5 @@ public interface IUserAccountService
     string GenerateJwtToken(SocialApp.Models.User user);
     Task<AuthResponseDTO> RegisterVerifiedUserAsync(VerifiedRegisterDTO registerDto);
     Task<UserResponseDTO?> GetUserByIdAsync(int userId);
+    Task<(AuthResponseDTO? Result, bool Success, string? ErrorMessage)> SocialLoginAsync(SocialLoginDTO socialLoginDto);
 }

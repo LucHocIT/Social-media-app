@@ -247,4 +247,29 @@ public class AuthController : ControllerBase
             return BadRequest(new { success = false, message = ex.Message });
         }
     }
+
+    [HttpPost("social-login")]
+    public async Task<ActionResult<AuthResponseDTO>> SocialLogin(SocialLoginDTO socialLoginDto)
+    {
+        try
+        {
+            _logger.LogInformation("Social login attempt with provider: {Provider}", socialLoginDto.Provider);
+            
+            var loginResult = await _userAccountService.SocialLoginAsync(socialLoginDto);
+            
+            if (!loginResult.Success)
+            {
+                _logger.LogWarning("Social login failed: {ErrorMessage}", loginResult.ErrorMessage);
+                return BadRequest(new { message = loginResult.ErrorMessage });
+            }
+            
+            _logger.LogInformation("Social login successful with provider: {Provider}", socialLoginDto.Provider);
+            return Ok(loginResult.Result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during social login with provider: {Provider}", socialLoginDto.Provider);
+            return BadRequest(new { message = "Đăng nhập thất bại: " + ex.Message });
+        }
+    }
 }

@@ -10,20 +10,24 @@ using SocialApp.Services.Email;
 namespace SocialApp.Services.Auth;
 
 public class UserAccountService : IUserAccountService
-{    private readonly SocialMediaDbContext _context;
+{    
+    private readonly SocialMediaDbContext _context;
     private readonly IConfiguration _configuration;
     private readonly IEmailVerificationService _emailVerificationService;
     private readonly ILogger<UserAccountService> _logger;
+    private readonly ISocialAuthService _socialAuthService;
 
     public UserAccountService(
         SocialMediaDbContext context, 
         IConfiguration configuration,
         IEmailVerificationService emailVerificationService,
+        ISocialAuthService socialAuthService,
         ILogger<UserAccountService> logger)
     {
         _context = context;
         _configuration = configuration;
         _emailVerificationService = emailVerificationService;
+        _socialAuthService = socialAuthService;
         _logger = logger;
     }
 
@@ -277,5 +281,140 @@ public class UserAccountService : IUserAccountService
         {
             return false;
         }
+    }
+
+    public async Task<(AuthResponseDTO? Result, bool Success, string? ErrorMessage)> SocialLoginAsync(SocialLoginDTO socialLoginDto)
+    {
+        try
+        {
+            // Get user info from the corresponding social provider
+            UserInfoFromSocialProvider userInfo;
+            
+            if (socialLoginDto.Provider.ToLower() == "facebook")
+            {
+                userInfo = await _socialAuthService.GetFacebookUserInfoAsync(socialLoginDto.AccessToken);
+            }
+            else if (socialLoginDto.Provider.ToLower() == "google")
+            {
+                userInfo = await _socialAuthService.GetGoogleUserInfoAsync(socialLoginDto.AccessToken);
+            }
+            else
+            {
+                _logger.LogWarning("Unsupported social login provider: {Provider}", socialLoginDto.Provider);
+                return (null, false, "Unsupported social login provider");
+            }
+            
+            // Check if email exists in our database
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Email.ToLower() == userInfo.Email.ToLower());
+            
+            if (user == null)
+            {                // User doesn't exist, create a new one
+                user = new SocialApp.Models.User
+                {
+                    Username = await GenerateUsername(userInfo.Email),
+                    Email = userInfo.Email,
+                    // Generate a random password since the user will login with social provider
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString()),
+                    FirstName = userInfo.FirstName,
+                    LastName = userInfo.LastName,
+                    ProfilePictureUrl = userInfo.PhotoUrl,
+                    Role = "User",
+                    IsDeleted = false,
+                    CreatedAt = DateTime.UtcNow,
+                    LastActive = DateTime.UtcNow
+                };
+                
+                await _context.Users.AddAsync(user);
+                await _context.SaveChangesAsync();
+                
+                _logger.LogInformation("New user created from {Provider} login: {Email}", 
+                    socialLoginDto.Provider, userInfo.Email);
+            }
+            else
+            {
+                // Check if user is deleted
+                if (user.IsDeleted)
+                {
+                    _logger.LogWarning("Social login attempt for deleted account: {Email}", userInfo.Email);
+                    return (null, false, "Tài khoản đã bị xóa");
+                }
+                
+                // Update user info if needed
+                bool userChanged = false;
+                
+                if (string.IsNullOrEmpty(user.FirstName) && !string.IsNullOrEmpty(userInfo.FirstName))
+                {
+                    user.FirstName = userInfo.FirstName;
+                    userChanged = true;
+                }
+                
+                if (string.IsNullOrEmpty(user.LastName) && !string.IsNullOrEmpty(userInfo.LastName))
+                {
+                    user.LastName = userInfo.LastName;
+                    userChanged = true;
+                }
+                
+                if (string.IsNullOrEmpty(user.ProfilePictureUrl) && !string.IsNullOrEmpty(userInfo.PhotoUrl))
+                {
+                    user.ProfilePictureUrl = userInfo.PhotoUrl;
+                    userChanged = true;
+                }
+                
+                if (userChanged)
+                {
+                    _context.Users.Update(user);
+                    await _context.SaveChangesAsync();
+                }
+                
+                // Update last active
+                user.LastActive = DateTime.UtcNow;
+                await _context.SaveChangesAsync();
+            }
+            
+            // Generate token and return response
+            var token = GenerateJwtToken(user);
+            
+            _logger.LogInformation("Social login successful for: {Email} via {Provider}", 
+                user.Email, socialLoginDto.Provider);
+            
+            return (new AuthResponseDTO
+            {
+                Token = token,
+                User = MapUserToUserResponseDto(user)
+            }, true, null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error during social login with {Provider}", socialLoginDto.Provider);
+            return (null, false, ex.Message);
+        }
+    }
+    
+    // Helper method to generate a unique username from email
+    private async Task<string> GenerateUsername(string email)
+    {
+        // Start with the part before @ in email
+        var username = email.Split('@')[0];
+        
+        // Remove special characters
+        username = new string(username.Where(c => char.IsLetterOrDigit(c)).ToArray());
+        
+        // Check if username exists
+        if (!await _context.Users.AnyAsync(u => u.Username == username))
+        {
+            return username;
+        }
+        
+        // If exists, add a random number
+        var random = new Random();
+        var uniqueUsername = $"{username}{random.Next(1000, 9999)}";
+        
+        // Check again to make sure it's unique
+        while (await _context.Users.AnyAsync(u => u.Username == uniqueUsername))
+        {
+            uniqueUsername = $"{username}{random.Next(1000, 9999)}";
+        }
+        
+        return uniqueUsername;
     }
 }

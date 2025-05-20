@@ -80,6 +80,7 @@ builder.Services.AddDbContext<SocialApp.Models.SocialMediaDbContext>(options =>
 
 // Đăng ký các dịch vụ authentication
 builder.Services.AddScoped<IUserAccountService, UserAccountService>();
+builder.Services.AddScoped<ISocialAuthService, SocialAuthService>();
 builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
@@ -114,6 +115,15 @@ builder.Services.AddHttpClient("EmailVerificationClient", client =>
 // Add circuit breaker to prevent cascading failures
 .AddTransientHttpErrorPolicy(policy => policy
     .CircuitBreakerAsync(5, TimeSpan.FromSeconds(30)));
+
+// Add HttpClient for social authentication services
+builder.Services.AddHttpClient<ISocialAuthService, SocialAuthService>(client => 
+{
+    client.Timeout = TimeSpan.FromSeconds(15);
+    client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
+})
+.AddTransientHttpErrorPolicy(policy => policy
+    .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt))));
 
 // Cấu hình xác thực JWT
 builder.Services.AddAuthentication(options =>

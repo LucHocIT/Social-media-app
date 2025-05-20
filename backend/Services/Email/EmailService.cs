@@ -22,15 +22,17 @@ public class EmailService : IEmailService
     {
         _configuration = configuration;
         _logger = logger;
-        
-        // Load email configuration with priority to environment variables
-        _smtpServer = Environment.GetEnvironmentVariable("EMAIL_SMTP_SERVER") 
+          // Load email configuration with priority to environment variables
+        _smtpServer = Environment.GetEnvironmentVariable("SMTP_HOST") 
+            ?? Environment.GetEnvironmentVariable("EMAIL_SMTP_SERVER") 
             ?? _configuration["EmailSettings:SmtpServer"] 
             ?? "smtp.example.com";
         
-        _smtpPort = int.TryParse(Environment.GetEnvironmentVariable("EMAIL_SMTP_PORT"), out int port) 
+        _smtpPort = int.TryParse(Environment.GetEnvironmentVariable("SMTP_PORT"), out int port) 
             ? port 
-            : int.Parse(_configuration["EmailSettings:SmtpPort"] ?? "587");
+            : int.TryParse(Environment.GetEnvironmentVariable("EMAIL_SMTP_PORT"), out int port2) 
+              ? port2 
+              : int.Parse(_configuration["EmailSettings:SmtpPort"] ?? "587");
         
         _smtpUsername = Environment.GetEnvironmentVariable("EMAIL_USERNAME") 
             ?? _configuration["EmailSettings:Username"] 
@@ -48,9 +50,16 @@ public class EmailService : IEmailService
             ?? _configuration["EmailSettings:SenderName"] 
             ?? "SocialApp";
         
-        _useSsl = bool.TryParse(Environment.GetEnvironmentVariable("EMAIL_USE_SSL"), out bool ssl) 
+        _useSsl = bool.TryParse(Environment.GetEnvironmentVariable("EMAIL_ENABLE_SSL"), out bool ssl) 
             ? ssl 
-            : bool.Parse(_configuration["EmailSettings:UseSsl"] ?? "true");
+            : bool.TryParse(Environment.GetEnvironmentVariable("EMAIL_USE_SSL"), out bool ssl2) 
+              ? ssl2 
+              : bool.Parse(_configuration["EmailSettings:UseSsl"] ?? "true");
+        
+        // Log the email configuration when service is created
+        _logger.LogInformation(
+            "Email Service initialized with: Server={Server}, Port={Port}, Username={Username}, SenderEmail={SenderEmail}, SSL={UseSSL}",
+            _smtpServer, _smtpPort, _smtpUsername, _senderEmail, _useSsl);
     }    public async Task<bool> SendEmailAsync(string to, string subject, string body)
     {
         try
@@ -108,13 +117,36 @@ public class EmailService : IEmailService
                 EnableSsl = _useSsl
             };
             
+            // Diagnostic information for troubleshooting Gmail SMTP issues
+            _logger.LogDebug("Email credentials: Username={Username}, Password length={PasswordLength}", 
+                _smtpUsername, _smtpPassword?.Length ?? 0);
+            
             await client.SendMailAsync(message);
             _logger.LogInformation("HTML Email sent successfully to {To}", to);
             return true;
         }
+        catch (SmtpException smtpEx)
+        {
+            _logger.LogError(smtpEx, "SMTP Error when sending HTML email to {To}: {ErrorMessage}, Status: {Status}", 
+                to, smtpEx.Message, smtpEx.StatusCode);
+            
+            _logger.LogError("Please check if 'Less secure app access' is enabled for your Google account, " +
+                            "or if you need to use an App Password instead of your regular password.");
+            
+            if (smtpEx.InnerException != null)
+            {
+                _logger.LogError(smtpEx.InnerException, "Inner exception details");
+            }
+            
+            return false;
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send HTML email to {To}", to);
+            _logger.LogError(ex, "General error when sending HTML email to {To}: {ErrorMessage}", to, ex.Message);
+            if (ex.InnerException != null)
+            {
+                _logger.LogError(ex.InnerException, "Inner exception details");
+            }
             return false;
         }
     }

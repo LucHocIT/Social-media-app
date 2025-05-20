@@ -8,7 +8,11 @@ using SocialApp.Models;
 using SocialApp.Services.Auth;
 using SocialApp.Services.Email;
 using SocialApp.Services.User;
+using SocialApp.Services.Utils;
 using Microsoft.OpenApi.Models;
+
+// Load .env file if it exists (this should be before creating the builder)
+DotEnv.Load(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
 
 var builder = WebApplication.CreateBuilder(args);
 

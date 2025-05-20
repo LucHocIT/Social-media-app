@@ -17,45 +17,37 @@ public class EmailService : IEmailService
     private readonly string _senderEmail;
     private readonly string _senderName;
     private readonly bool _useSsl;
+    private readonly bool _isDevelopment;
 
     public EmailService(IConfiguration configuration, ILogger<EmailService> logger)
     {
         _configuration = configuration;
         _logger = logger;
         
-        // Load email configuration with priority to environment variables
-        _smtpServer = Environment.GetEnvironmentVariable("EMAIL_SMTP_SERVER") 
-            ?? _configuration["EmailSettings:SmtpServer"] 
-            ?? "smtp.example.com";
+        // Load email configuration
+        _smtpServer = _configuration["EmailSettings:SmtpServer"] ?? "smtp.example.com";
+        _smtpPort = int.Parse(_configuration["EmailSettings:SmtpPort"] ?? "587");
+        _smtpUsername = _configuration["EmailSettings:Username"] ?? "user@example.com";
+        _smtpPassword = _configuration["EmailSettings:Password"] ?? "password";
+        _senderEmail = _configuration["EmailSettings:SenderEmail"] ?? "noreply@socialapp.com";
+        _senderName = _configuration["EmailSettings:SenderName"] ?? "SocialApp";
+        _useSsl = bool.Parse(_configuration["EmailSettings:UseSsl"] ?? "true");
         
-        _smtpPort = int.TryParse(Environment.GetEnvironmentVariable("EMAIL_SMTP_PORT"), out int port) 
-            ? port 
-            : int.Parse(_configuration["EmailSettings:SmtpPort"] ?? "587");
-        
-        _smtpUsername = Environment.GetEnvironmentVariable("EMAIL_USERNAME") 
-            ?? _configuration["EmailSettings:Username"] 
-            ?? "user@example.com";
-        
-        _smtpPassword = Environment.GetEnvironmentVariable("EMAIL_PASSWORD") 
-            ?? _configuration["EmailSettings:Password"] 
-            ?? "password";
-        
-        _senderEmail = Environment.GetEnvironmentVariable("EMAIL_SENDER") 
-            ?? _configuration["EmailSettings:SenderEmail"] 
-            ?? "noreply@socialapp.com";
-        
-        _senderName = Environment.GetEnvironmentVariable("EMAIL_SENDER_NAME") 
-            ?? _configuration["EmailSettings:SenderName"] 
-            ?? "SocialApp";
-        
-        _useSsl = bool.TryParse(Environment.GetEnvironmentVariable("EMAIL_USE_SSL"), out bool ssl) 
-            ? ssl 
-            : bool.Parse(_configuration["EmailSettings:UseSsl"] ?? "true");
+        // Determine environment
+        _isDevelopment = _configuration["ASPNETCORE_ENVIRONMENT"] == "Development";
     }    public async Task<bool> SendEmailAsync(string to, string subject, string body)
     {
         try
         {
-            _logger.LogInformation("Attempting to send email to: {To}", to);
+            if (_isDevelopment)
+            {
+                // In development, just log the email instead of sending it
+                _logger.LogInformation("Development mode: Email not sent");
+                _logger.LogInformation("To: {To}", to);
+                _logger.LogInformation("Subject: {Subject}", subject);
+                _logger.LogInformation("Body: {Body}", body);
+                return true;
+            }
             
             using var message = new MailMessage
             {
@@ -86,7 +78,15 @@ public class EmailService : IEmailService
     {
         try
         {
-            _logger.LogInformation("Attempting to send HTML email to: {To}", to);
+            if (_isDevelopment)
+            {
+                // In development, just log the email instead of sending it
+                _logger.LogInformation("Development mode: HTML Email not sent");
+                _logger.LogInformation("To: {To}", to);
+                _logger.LogInformation("Subject: {Subject}", subject);
+                _logger.LogInformation("HTML Content: {Content}", htmlContent);
+                return true;
+            }
             
             using var message = new MailMessage
             {

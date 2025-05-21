@@ -114,9 +114,7 @@ public class ProfileService : IProfileService
             _logger.LogError(ex, "Error updating profile for user {UserId}", userId);
             return false;
         }
-    }
-
-    public async Task<bool> UpdateProfilePictureAsync(int userId, string pictureUrl)
+    }    public async Task<bool> UpdateProfilePictureAsync(int userId, string? pictureUrl)
     {
         try
         {

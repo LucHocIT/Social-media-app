@@ -72,8 +72,8 @@ public class ProfileController : ControllerBase
         }
 
         return Ok(profile);
-    }
-    [HttpPut("update")]
+    }    [HttpPut("update")]
+    [HttpPut("")]  // Adding a route alias to support direct PUT to /api/profile
     [Authorize]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDTO profileDto)
     {
@@ -216,6 +216,21 @@ public class ProfileController : ControllerBase
         }
 
         return Ok(new { message = "Profile picture updated successfully" });
+    }
+
+    [HttpDelete("picture")]
+    [Authorize]
+    public async Task<IActionResult> RemoveProfilePicture()
+    {
+        int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+
+        bool result = await _profileService.UpdateProfilePictureAsync(currentUserId, null);
+        if (!result)
+        {
+            return BadRequest(new { message = "Failed to remove profile picture" });
+        }
+
+        return Ok(new { message = "Profile picture removed successfully" });
     }
 
     [HttpGet("search")]

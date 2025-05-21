@@ -96,6 +96,89 @@ public class ProfileController : ControllerBase
         return Ok(new { message = "Profile updated successfully" });
     }
 
+    // Add endpoints for followers and following
+    [HttpGet("{userId}/followers")]
+    public async Task<IActionResult> GetFollowers(int userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    {
+        try
+        {
+            var followers = await _profileService.GetUserFollowersAsync(userId, page, pageSize);
+            return Ok(followers);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching followers for user {UserId}", userId);
+            return StatusCode(500, new { message = "Failed to fetch followers" });
+        }
+    }
+
+    [HttpGet("{userId}/following")]
+    public async Task<IActionResult> GetFollowing(int userId, [FromQuery] int page = 1, [FromQuery] int pageSize = 10)
+    {
+        try
+        {
+            var following = await _profileService.GetUserFollowingAsync(userId, page, pageSize);
+            return Ok(following);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching following for user {UserId}", userId);
+            return StatusCode(500, new { message = "Failed to fetch following" });
+        }
+    }    [HttpPost("follow/{userId}")]
+    [Authorize]
+    public async Task<IActionResult> FollowUser(int userId)
+    {
+        int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+        if (userId == currentUserId)
+        {
+            return BadRequest(new { message = "You cannot follow yourself" });
+        }
+
+        try
+        {
+            bool result = await _profileService.FollowUserAsync(currentUserId, userId);
+            if (!result)
+            {
+                return BadRequest(new { message = "Failed to follow user. User may not exist or you may already be following them." });
+            }
+
+            return Ok(new { message = "Successfully followed user" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error following user {TargetUserId} by user {CurrentUserId}", userId, currentUserId);
+            return StatusCode(500, new { message = "An error occurred while trying to follow user" });
+        }
+    }
+
+    [HttpDelete("unfollow/{userId}")]
+    [Authorize]
+    public async Task<IActionResult> UnfollowUser(int userId)
+    {
+        int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+        if (userId == currentUserId)
+        {
+            return BadRequest(new { message = "You cannot unfollow yourself" });
+        }
+
+        try
+        {
+            bool result = await _profileService.UnfollowUserAsync(currentUserId, userId);
+            if (!result)
+            {
+                return BadRequest(new { message = "Failed to unfollow user. User may not exist or you may not be following them." });
+            }
+
+            return Ok(new { message = "Successfully unfollowed user" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error unfollowing user {TargetUserId} by user {CurrentUserId}", userId, currentUserId);
+            return StatusCode(500, new { message = "An error occurred while trying to unfollow user" });
+        }
+    }
+
     // Admin endpoints
     [HttpPut("admin/update/{userId}")]
     [Authorize(Roles = "Admin")]

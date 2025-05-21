@@ -186,9 +186,7 @@ public class ProfileService : IProfileService
         }
 
         return !await query.AnyAsync();
-    }
-
-    public async Task<bool> IsEmailUniqueAsync(string email, int? currentUserId = null)
+    }    public async Task<bool> IsEmailUniqueAsync(string email, int? currentUserId = null)
     {
         var query = _context.Users.Where(u => u.Email == email && !u.IsDeleted);
 
@@ -198,6 +196,123 @@ public class ProfileService : IProfileService
         }
 
         return !await query.AnyAsync();
+    }
+        
+    // Implement follower-related methods
+    public async Task<IEnumerable<ProfileDTO>> GetUserFollowersAsync(int userId, int page = 1, int pageSize = 10)
+    {
+        try
+        {
+            var followers = await _context.UserFollowers
+                .Where(f => f.FollowingId == userId)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(f => f.Follower)
+                .Where(u => !u.IsDeleted)
+                .ToListAsync();
+
+            var profileDtos = new List<ProfileDTO>();
+            foreach (var follower in followers)
+            {
+                var profileDto = await CreateProfileDTOAsync(follower);
+                profileDtos.Add(profileDto);
+            }
+
+            return profileDtos;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving followers for user {UserId}", userId);
+            return Enumerable.Empty<ProfileDTO>();
+        }
+    }
+    
+    public async Task<IEnumerable<ProfileDTO>> GetUserFollowingAsync(int userId, int page = 1, int pageSize = 10)
+    {
+        try
+        {
+            var following = await _context.UserFollowers
+                .Where(f => f.FollowerId == userId)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .Select(f => f.Following)
+                .Where(u => !u.IsDeleted)
+                .ToListAsync();
+
+            var profileDtos = new List<ProfileDTO>();
+            foreach (var followee in following)
+            {
+                var profileDto = await CreateProfileDTOAsync(followee);
+                profileDtos.Add(profileDto);
+            }
+
+            return profileDtos;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving following for user {UserId}", userId);
+            return Enumerable.Empty<ProfileDTO>();
+        }
+    }    public async Task<bool> FollowUserAsync(int followerId, int followingId)
+    {
+        try
+        {
+            // Check if both users exist
+            var follower = await _context.Users.FindAsync(followerId);
+            var following = await _context.Users.FindAsync(followingId);
+
+            if (follower == null || following == null || follower.IsDeleted || following.IsDeleted)
+            {
+                _logger.LogWarning("One or both users in follow relationship do not exist: {FollowerId} -> {FollowingId}", followerId, followingId);
+                return false;
+            }
+
+            // Check if already following
+            var existingFollow = await _context.UserFollowers
+                .FirstOrDefaultAsync(f => f.FollowerId == followerId && f.FollowingId == followingId);
+
+            if (existingFollow != null)
+            {
+                // Already following
+                return true;
+            }            // Create new follow relationship
+            _context.UserFollowers.Add(new UserFollower
+            {
+                FollowerId = followerId,
+                FollowingId = followingId,
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error following user {FollowingId} by user {FollowerId}", followingId, followerId);
+            return false;
+        }
+    }    public async Task<bool> UnfollowUserAsync(int followerId, int followingId)
+    {
+        try
+        {
+            var followRelationship = await _context.UserFollowers
+                .FirstOrDefaultAsync(f => f.FollowerId == followerId && f.FollowingId == followingId);
+
+            if (followRelationship == null)
+            {
+                // Not following
+                return true;
+            }
+
+            _context.UserFollowers.Remove(followRelationship);
+            await _context.SaveChangesAsync();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error unfollowing user {FollowingId} by user {FollowerId}", followingId, followerId);
+            return false;
+        }
     }
 
     private async Task<ProfileDTO> CreateProfileDTOAsync(Models.User user)

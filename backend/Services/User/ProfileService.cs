@@ -204,9 +204,9 @@ public partial class ProfileService : IProfileService
     public async Task<IEnumerable<ProfileDTO>> GetUserFollowersAsync(int userId, int page = 1, int pageSize = 10)
     {
         try
-        {
-            var followers = await _context.UserFollowers
+        {            var followers = await _context.UserFollowers
                 .Where(f => f.FollowingId == userId)
+                .OrderBy(f => f.FollowerId)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .Select(f => f.Follower)
@@ -232,9 +232,9 @@ public partial class ProfileService : IProfileService
     public async Task<IEnumerable<ProfileDTO>> GetUserFollowingAsync(int userId, int page = 1, int pageSize = 10)
     {
         try
-        {
-            var following = await _context.UserFollowers
+        {            var following = await _context.UserFollowers
                 .Where(f => f.FollowerId == userId)
+                .OrderBy(f => f.FollowingId)
                 .Skip((page - 1) * pageSize)
                 .Take(pageSize)
                 .Select(f => f.Following)

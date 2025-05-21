@@ -226,7 +226,9 @@ public class ProfileController : ControllerBase
         }
 
         return Ok(new { message = "Profile picture updated successfully" });
-    }    [HttpPost("picture")]
+    }
+
+    [HttpPost("picture")]
     [Authorize]
     public async Task<IActionResult> UploadProfilePicture(IFormFile profilePicture)
     {

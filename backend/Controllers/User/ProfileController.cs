@@ -218,6 +218,73 @@ public class ProfileController : ControllerBase
         return Ok(new { message = "Profile picture updated successfully" });
     }
 
+    [HttpPost("picture")]
+    [Authorize]
+    public async Task<IActionResult> UploadProfilePicture(IFormFile profilePicture)
+    {
+        if (profilePicture == null)
+        {
+            return BadRequest(new { message = "No file uploaded" });
+        }
+
+        try
+        {
+            // Validate file type
+            string[] allowedExtensions = { ".jpg", ".jpeg", ".png", ".gif" };
+            string fileExtension = Path.GetExtension(profilePicture.FileName).ToLower();
+            
+            if (!allowedExtensions.Contains(fileExtension))
+            {
+                return BadRequest(new { message = "Only jpg, jpeg, png, and gif files are allowed" });
+            }
+
+            // Generate a unique filename
+            string fileName = Guid.NewGuid().ToString() + fileExtension;
+            
+            // Set the path where to save the file
+            string uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "profiles");
+            
+            // Create directory if it doesn't exist
+            if (!Directory.Exists(uploadsFolder))
+            {
+                Directory.CreateDirectory(uploadsFolder);
+            }
+            
+            string filePath = Path.Combine(uploadsFolder, fileName);
+            
+            // Save the file
+            using (var fileStream = new FileStream(filePath, FileMode.Create))
+            {
+                await profilePicture.CopyToAsync(fileStream);
+            }
+            
+            // Generate URL for the image
+            string imageUrl = $"/uploads/profiles/{fileName}";
+            
+            // Update user profile with new image URL
+            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            bool result = await _profileService.UpdateProfilePictureAsync(currentUserId, imageUrl);
+            
+            if (!result)
+            {
+                // If update failed, delete the uploaded file
+                if (System.IO.File.Exists(filePath))
+                {
+                    System.IO.File.Delete(filePath);
+                }
+                
+                return BadRequest(new { message = "Failed to update profile picture" });
+            }
+            
+            return Ok(new { profilePictureUrl = imageUrl, message = "Profile picture uploaded successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading profile picture for user");
+            return StatusCode(500, new { message = "An error occurred while uploading the file" });
+        }
+    }
+
     [HttpDelete("picture")]
     [Authorize]
     public async Task<IActionResult> RemoveProfilePicture()

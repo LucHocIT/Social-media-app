@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using SocialApp.DTOs;
 using SocialApp.Models;
 using SocialApp.Services.User;
+using SocialApp.Services.Utils;
 using System.Security.Claims;
 using BCrypt.Net;
 
@@ -15,15 +16,18 @@ public class ProfileController : ControllerBase
 {    private readonly IProfileService _profileService;
     private readonly ILogger<ProfileController> _logger;
     private readonly SocialMediaDbContext _context;
+    private readonly ICloudinaryService _cloudinaryService;
 
     public ProfileController(
         IProfileService profileService,
         ILogger<ProfileController> logger,
-        SocialMediaDbContext context)
+        SocialMediaDbContext context,
+        ICloudinaryService cloudinaryService)
     {
         _profileService = profileService;
         _logger = logger;
         _context = context;
+        _cloudinaryService = cloudinaryService;
     }
 
     [HttpGet("{userId}")]
@@ -221,9 +225,7 @@ public class ProfileController : ControllerBase
         }
 
         return Ok(new { message = "Profile picture updated successfully" });
-    }
-
-    [HttpPost("picture")]
+    }    [HttpPost("picture")]
     [Authorize]
     public async Task<IActionResult> UploadProfilePicture(IFormFile profilePicture)
     {
@@ -243,58 +245,77 @@ public class ProfileController : ControllerBase
                 return BadRequest(new { message = "Only jpg, jpeg, png, and gif files are allowed" });
             }
 
-            // Generate a unique filename
-            string fileName = Guid.NewGuid().ToString() + fileExtension;
-            
-            // Set the path where to save the file
-            string uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads", "profiles");
-            
-            // Create directory if it doesn't exist
-            if (!Directory.Exists(uploadsFolder))
+            // Upload image to Cloudinary
+            using (var stream = profilePicture.OpenReadStream())
             {
-                Directory.CreateDirectory(uploadsFolder);
-            }
-            
-            string filePath = Path.Combine(uploadsFolder, fileName);
-            
-            // Save the file
-            using (var fileStream = new FileStream(filePath, FileMode.Create))
-            {
-                await profilePicture.CopyToAsync(fileStream);
-            }
-            
-            // Generate URL for the image
-            string imageUrl = $"/uploads/profiles/{fileName}";
-            
-            // Update user profile with new image URL
-            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            bool result = await _profileService.UpdateProfilePictureAsync(currentUserId, imageUrl);
-            
-            if (!result)
-            {
-                // If update failed, delete the uploaded file
-                if (System.IO.File.Exists(filePath))
+                var uploadResult = await _cloudinaryService.UploadImageAsync(stream, profilePicture.FileName);
+                
+                if (uploadResult == null || string.IsNullOrEmpty(uploadResult.Url))
                 {
-                    System.IO.File.Delete(filePath);
+                    return BadRequest(new { message = "Failed to upload image to Cloudinary" });
                 }
                 
-                return BadRequest(new { message = "Failed to update profile picture" });
+                // Update user profile with new image URL
+                int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                
+                // Get current profile picture URL to delete the old one if it exists
+                var user = await _context.Users
+                    .Where(u => u.Id == currentUserId && !u.IsDeleted)
+                    .FirstOrDefaultAsync();
+                
+                if (user != null && !string.IsNullOrEmpty(user.ProfilePictureUrl) && 
+                    user.ProfilePictureUrl.Contains("cloudinary.com"))
+                {
+                    // Extract public ID and delete old image from Cloudinary
+                    var publicId = ExtractCloudinaryPublicId(user.ProfilePictureUrl);
+                    if (!string.IsNullOrEmpty(publicId))
+                    {
+                        await _cloudinaryService.DeleteImageAsync(publicId);
+                    }
+                }
+                
+                bool result = await _profileService.UpdateProfilePictureAsync(currentUserId, uploadResult.Url);
+                
+                if (!result)
+                {
+                    return BadRequest(new { message = "Failed to update profile picture" });
+                }
+                
+                return Ok(new { 
+                    profilePictureUrl = uploadResult.Url,
+                    publicId = uploadResult.PublicId,
+                    width = uploadResult.Width,
+                    height = uploadResult.Height,
+                    message = "Profile picture uploaded successfully" 
+                });
             }
-            
-            return Ok(new { profilePictureUrl = imageUrl, message = "Profile picture uploaded successfully" });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading profile picture for user");
             return StatusCode(500, new { message = "An error occurred while uploading the file" });
         }
-    }
-
-    [HttpDelete("picture")]
+    }    [HttpDelete("picture")]
     [Authorize]
     public async Task<IActionResult> RemoveProfilePicture()
     {
         int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+
+        // Get current profile picture URL
+        var user = await _context.Users
+            .Where(u => u.Id == currentUserId && !u.IsDeleted)
+            .FirstOrDefaultAsync();
+            
+        if (user != null && !string.IsNullOrEmpty(user.ProfilePictureUrl) && 
+            user.ProfilePictureUrl.Contains("cloudinary.com"))
+        {
+            // Extract public ID and delete from Cloudinary
+            var publicId = ExtractCloudinaryPublicId(user.ProfilePictureUrl);
+            if (!string.IsNullOrEmpty(publicId))
+            {
+                await _cloudinaryService.DeleteImageAsync(publicId);
+            }
+        }
 
         bool result = await _profileService.UpdateProfilePictureAsync(currentUserId, null);
         if (!result)
@@ -388,5 +409,37 @@ public class ProfileController : ControllerBase
         await _context.SaveChangesAsync();
         
         return Ok(new { message = "Password updated successfully" });
+    }
+
+    // Helper method to extract Cloudinary public ID from URL
+    private string? ExtractCloudinaryPublicId(string? cloudinaryUrl)
+    {
+        if (string.IsNullOrEmpty(cloudinaryUrl) || !cloudinaryUrl.Contains("cloudinary.com"))
+        {
+            return null;
+        }
+        
+        try
+        {
+            // Example: https://res.cloudinary.com/mycloudname/image/upload/v1234567890/profiles/abc123.jpg
+            var uri = new Uri(cloudinaryUrl);
+            var pathSegments = uri.AbsolutePath.Split('/');
+            
+            if (pathSegments.Length >= 4)
+            {
+                // Get the folder and filename (without extension)
+                var folder = pathSegments[pathSegments.Length - 2];
+                var filename = Path.GetFileNameWithoutExtension(pathSegments[pathSegments.Length - 1]);
+                
+                // Return in format "folder/filename"
+                return $"{folder}/{filename}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error extracting public ID from Cloudinary URL");
+        }
+        
+        return null;
     }
 }

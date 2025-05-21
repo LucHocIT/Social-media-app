@@ -1,11 +1,14 @@
 using SocialApp.DTOs;
+using SocialApp.Services.Utils;
+using Microsoft.AspNetCore.Http;
 
 namespace SocialApp.Services.User;
 
 public interface IProfileService
 {
     Task<ProfileDTO?> GetUserProfileAsync(int userId);
-    Task<ProfileDTO?> GetUserProfileByUsernameAsync(string username);    Task<bool> UpdateUserProfileAsync(int userId, UpdateProfileDTO profileDto);
+    Task<ProfileDTO?> GetUserProfileByUsernameAsync(string username);    
+    Task<bool> UpdateUserProfileAsync(int userId, UpdateProfileDTO profileDto);
     Task<bool> UpdateProfilePictureAsync(int userId, string? pictureUrl);
     Task<IEnumerable<ProfileDTO>> SearchProfilesAsync(string searchTerm, int pageNumber = 1, int pageSize = 10);
     Task<bool> IsUsernameUniqueAsync(string username, int? currentUserId = null);
@@ -15,4 +18,10 @@ public interface IProfileService
     Task<IEnumerable<ProfileDTO>> GetUserFollowingAsync(int userId, int page = 1, int pageSize = 10);
     Task<bool> FollowUserAsync(int followerId, int followingId);
     Task<bool> UnfollowUserAsync(int followerId, int followingId);
+    
+    // Cloudinary-related methods
+    Task<UploadProfilePictureResult> UploadProfilePictureAsync(int userId, IFormFile profilePicture);
+    Task<bool> RemoveProfilePictureAsync(int userId);
+    Task<bool> UpdateProfilePictureWithUrlAsync(int userId, ProfilePictureDTO pictureDto);
+    Task<bool> ChangePasswordAsync(int userId, string currentPassword, string newPassword);
 }

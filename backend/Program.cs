@@ -78,6 +78,7 @@ builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>(
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 
 // HttpClient for email verification
 builder.Services.AddHttpClient("EmailVerificationClient", client =>

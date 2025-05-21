@@ -1,20 +1,24 @@
 using Microsoft.EntityFrameworkCore;
 using SocialApp.DTOs;
 using SocialApp.Models;
+using SocialApp.Services.Utils;
 
 namespace SocialApp.Services.User;
 
-public class ProfileService : IProfileService
+public partial class ProfileService : IProfileService
 {
     private readonly SocialMediaDbContext _context;
     private readonly ILogger<ProfileService> _logger;
+    private readonly ICloudinaryService _cloudinaryService;
 
     public ProfileService(
         SocialMediaDbContext context,
-        ILogger<ProfileService> logger)
+        ILogger<ProfileService> logger,
+        ICloudinaryService cloudinaryService)
     {
         _context = context;
         _logger = logger;
+        _cloudinaryService = cloudinaryService;
     }
 
     public async Task<ProfileDTO?> GetUserProfileAsync(int userId)

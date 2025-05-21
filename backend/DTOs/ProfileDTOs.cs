@@ -34,9 +34,7 @@ public class UpdateProfileDTO
     public string? FirstName { get; set; }
 
     [StringLength(50)]
-    public string? LastName { get; set; }
-
-    [StringLength(500)]
+    public string? LastName { get; set; }    [StringLength(500)]
     public string? Bio { get; set; }
 }
 
@@ -44,6 +42,10 @@ public class ProfilePictureDTO
 {
     [Required]
     public string PictureUrl { get; set; } = null!;
+    
+    // Optional properties to store Cloudinary metadata
+    public string? PublicId { get; set; }
+    public string? CloudName { get; set; }
 }
 
 public class ProfileSearchDTO

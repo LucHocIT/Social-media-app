@@ -1,0 +1,227 @@
+using Microsoft.EntityFrameworkCore;
+using SocialApp.DTOs;
+using SocialApp.Models;
+
+namespace SocialApp.Services.User;
+
+public class ProfileService : IProfileService
+{
+    private readonly SocialMediaDbContext _context;
+    private readonly ILogger<ProfileService> _logger;
+
+    public ProfileService(
+        SocialMediaDbContext context,
+        ILogger<ProfileService> logger)
+    {
+        _context = context;
+        _logger = logger;
+    }
+
+    public async Task<ProfileDTO?> GetUserProfileAsync(int userId)
+    {
+        try
+        {
+            var user = await _context.Users
+                .Where(u => u.Id == userId && !u.IsDeleted)
+                .FirstOrDefaultAsync();
+
+            if (user == null)
+            {
+                _logger.LogWarning("User with ID {UserId} not found", userId);
+                return null;
+            }
+
+            return await CreateProfileDTOAsync(user);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving profile for user {UserId}", userId);
+            return null;
+        }
+    }
+
+    public async Task<ProfileDTO?> GetUserProfileByUsernameAsync(string username)
+    {
+        try
+        {
+            var user = await _context.Users
+                .Where(u => u.Username == username && !u.IsDeleted)
+                .FirstOrDefaultAsync();
+
+            if (user == null)
+            {
+                _logger.LogWarning("User with username {Username} not found", username);
+                return null;
+            }
+
+            return await CreateProfileDTOAsync(user);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving profile for username {Username}", username);
+            return null;
+        }
+    }
+
+    public async Task<bool> UpdateUserProfileAsync(int userId, UpdateProfileDTO profileDto)
+    {
+        try
+        {
+            var user = await _context.Users
+                .Where(u => u.Id == userId && !u.IsDeleted)
+                .FirstOrDefaultAsync();
+
+            if (user == null)
+            {
+                _logger.LogWarning("UpdateUserProfileAsync failed: User with ID {UserId} not found", userId);
+                return false;
+            }
+
+            // Check if username is already taken by another user
+            if (user.Username != profileDto.Username)
+            {
+                if (!await IsUsernameUniqueAsync(profileDto.Username, userId))
+                {
+                    _logger.LogWarning("UpdateUserProfileAsync failed: Username {Username} already taken", profileDto.Username);
+                    return false;
+                }
+            }
+
+            // Check if email is already taken by another user
+            if (user.Email != profileDto.Email)
+            {
+                if (!await IsEmailUniqueAsync(profileDto.Email, userId))
+                {
+                    _logger.LogWarning("UpdateUserProfileAsync failed: Email {Email} already taken", profileDto.Email);
+                    return false;
+                }
+            }
+
+            // Update user profile
+            user.Username = profileDto.Username;
+            user.Email = profileDto.Email;
+            user.FirstName = profileDto.FirstName;
+            user.LastName = profileDto.LastName;
+            user.Bio = profileDto.Bio;
+            user.LastActive = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("User {UserId} profile updated", userId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating profile for user {UserId}", userId);
+            return false;
+        }
+    }
+
+    public async Task<bool> UpdateProfilePictureAsync(int userId, string pictureUrl)
+    {
+        try
+        {
+            var user = await _context.Users
+                .Where(u => u.Id == userId && !u.IsDeleted)
+                .FirstOrDefaultAsync();
+
+            if (user == null)
+            {
+                _logger.LogWarning("UpdateProfilePictureAsync failed: User with ID {UserId} not found", userId);
+                return false;
+            }
+
+            user.ProfilePictureUrl = pictureUrl;
+            user.LastActive = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            _logger.LogInformation("User {UserId} profile picture updated", userId);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error updating profile picture for user {UserId}", userId);
+            return false;
+        }
+    }
+
+    public async Task<IEnumerable<ProfileDTO>> SearchProfilesAsync(string searchTerm, int pageNumber = 1, int pageSize = 10)
+    {
+        try
+        {
+            var query = _context.Users
+                .Where(u => !u.IsDeleted &&
+                           (u.Username.Contains(searchTerm) ||
+                            (u.FirstName != null && u.FirstName.Contains(searchTerm)) ||
+                            (u.LastName != null && u.LastName.Contains(searchTerm))));
+
+            var users = await query
+                .OrderBy(u => u.Username)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var profileDtos = new List<ProfileDTO>();
+
+            foreach (var user in users)
+            {
+                profileDtos.Add(await CreateProfileDTOAsync(user));
+            }
+
+            return profileDtos;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error searching for profiles with search term {SearchTerm}", searchTerm);
+            return Enumerable.Empty<ProfileDTO>();
+        }
+    }
+
+    public async Task<bool> IsUsernameUniqueAsync(string username, int? currentUserId = null)
+    {
+        var query = _context.Users.Where(u => u.Username == username && !u.IsDeleted);
+
+        if (currentUserId.HasValue)
+        {
+            query = query.Where(u => u.Id != currentUserId.Value);
+        }
+
+        return !await query.AnyAsync();
+    }
+
+    public async Task<bool> IsEmailUniqueAsync(string email, int? currentUserId = null)
+    {
+        var query = _context.Users.Where(u => u.Email == email && !u.IsDeleted);
+
+        if (currentUserId.HasValue)
+        {
+            query = query.Where(u => u.Id != currentUserId.Value);
+        }
+
+        return !await query.AnyAsync();
+    }
+
+    private async Task<ProfileDTO> CreateProfileDTOAsync(Models.User user)
+    {
+        var postCount = await _context.Posts.CountAsync(p => p.UserId == user.Id);
+        var followersCount = await _context.UserFollowers.CountAsync(uf => uf.FollowingId == user.Id);
+        var followingCount = await _context.UserFollowers.CountAsync(uf => uf.FollowerId == user.Id);
+
+        return new ProfileDTO
+        {
+            Id = user.Id,
+            Username = user.Username,
+            Email = user.Email,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            Bio = user.Bio,
+            ProfilePictureUrl = user.ProfilePictureUrl,
+            Role = user.Role,
+            CreatedAt = user.CreatedAt,
+            LastActive = user.LastActive,
+            PostCount = postCount,
+            FollowersCount = followersCount,
+            FollowingCount = followingCount,
+            IsFollowedByCurrentUser = false // This will be set by the controller based on the current user
+        };
+    }
+}

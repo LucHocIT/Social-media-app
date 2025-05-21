@@ -18,28 +18,22 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
 
-// Thêm cấu hình Swagger
+// Swagger configuration
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new OpenApiInfo { 
-        Title = "Social App API", 
+    c.SwaggerDoc("v1", new OpenApiInfo
+    {
+        Title = "Social App API",
         Version = "v1",
-        Description = "API cho ứng dụng mạng xã hội SocialApp",
-        Contact = new OpenApiContact
-        {
-            Name = "Social App Team",
-            Email = "contact@socialapp.example.com"
-        }
+        Description = "API for SocialApp"
     });
-    
-    // Cấu hình xác thực JWT cho Swagger
+
+    // JWT authentication for Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\"",
+        Description = "JWT Authorization header using Bearer scheme. Example: \"Authorization: Bearer {token}\"",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
@@ -62,79 +56,49 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Add CORS policy
+// CORS policy
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowFrontend", 
+    options.AddPolicy("AllowFrontend",
         builder => builder
-            .WithOrigins(
-                "http://localhost:3000", 
-                "https://localhost:3000",
-                "http://localhost:3001", 
-                "https://localhost:3001"
-            ) // Thay đổi theo domain của frontend
+            .WithOrigins("http://localhost:3000", "https://localhost:3000")
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials());
 });
 
-// Add DbContext
-builder.Services.AddDbContext<SocialApp.Models.SocialMediaDbContext>(options =>
+// DbContext
+builder.Services.AddDbContext<SocialMediaDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// Đăng ký các dịch vụ authentication
+// Register services
 builder.Services.AddScoped<IUserAccountService, UserAccountService>();
 builder.Services.AddScoped<ISocialAuthService, SocialAuthService>();
 builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>();
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
+builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
-// AuthService và EmailVerificationCodeService đã được loại bỏ vì không cần thiết
 
-// Add HttpClient for external API calls with proper timeout and resilience
+// HttpClient for email verification
 builder.Services.AddHttpClient("EmailVerificationClient", client =>
 {
-    // Increase timeout for better reliability with slow external APIs
     client.Timeout = TimeSpan.FromSeconds(10);
-    
-    // Add default headers if needed
-    client.DefaultRequestHeaders.Add("User-Agent", "SocialApp-Backend");
     client.DefaultRequestHeaders.Add("Accept", "application/json");
 })
-.SetHandlerLifetime(TimeSpan.FromMinutes(5))  // Set the lifetime of the HttpClientHandler
-.ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-{
-    // Configure proxy settings
-    UseProxy = false,
-    
-    // Configure TLS/SSL (only for development)
-    ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator,
-    
-    // Add additional performance settings
-    MaxConnectionsPerServer = 100,
-    UseCookies = false
-})
-// Add retry policy to handle transient failures
 .AddTransientHttpErrorPolicy(policy => policy
-    .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromMilliseconds(100 * Math.Pow(2, retryAttempt))))
-// Add circuit breaker to prevent cascading failures
-.AddTransientHttpErrorPolicy(policy => policy
-    .CircuitBreakerAsync(5, TimeSpan.FromSeconds(30)));
+    .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromMilliseconds(100 * Math.Pow(2, retryAttempt))));
 
-// Add HttpClient for social authentication services
-builder.Services.AddHttpClient<ISocialAuthService, SocialAuthService>(client => 
+// HttpClient for social authentication
+builder.Services.AddHttpClient<ISocialAuthService, SocialAuthService>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(15);
     client.DefaultRequestHeaders.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 })
 .AddTransientHttpErrorPolicy(policy => policy
-    .WaitAndRetryAsync(3, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt))));
+    .WaitAndRetryAsync(2, retryAttempt => TimeSpan.FromSeconds(Math.Pow(2, retryAttempt))));
 
-// Cấu hình xác thực JWT
-builder.Services.AddAuthentication(options =>
-{
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-})
+// JWT Authentication
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 .AddJwtBearer(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
@@ -146,35 +110,25 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
         ValidAudience = builder.Configuration["Jwt:Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(
-            builder.Configuration["Jwt:Key"] ?? throw new ArgumentNullException("Jwt:Key", "JWT Key is not configured")))
+            builder.Configuration["Jwt:Key"] ?? throw new ArgumentNullException("JWT Key not configured")))
     };
 });
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Configure the HTTP pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "Social App API v1");
-        c.RoutePrefix = "swagger";
-    });
+    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Social App API v1"));
 }
 
-// Add CORS middleware
 app.UseCors("AllowFrontend");
-
-// Add Authentication middleware
 app.UseAuthentication();
-
-// Configure authorization to use role-based permissions
 app.UseAuthorization();
-
 app.MapControllers();
 
-// Seed the database with an initial admin user
+// Seed the database
 using (var scope = app.Services.CreateScope())
 {
     try
@@ -194,80 +148,29 @@ app.Run();
 // Database seeding method
 void SeedDatabase(SocialMediaDbContext context, IConfiguration configuration)
 {
-    // Check if database exists and is valid before running migrations
-    if (!context.Database.CanConnect())
+    try
     {
-        // Create database if it doesn't exist
+        // Ensure database exists
         context.Database.EnsureCreated();
+        
+        // Apply any pending migrations
+        context.Database.Migrate();
     }
-    else 
+    catch (Exception ex)
     {
-        // Check if __EFMigrationsHistory table exists
-        bool migrationsTableExists = false;
-        try
-        {
-            // Try to query the migrations history table
-            migrationsTableExists = context.Database.ExecuteSqlRaw("SELECT 1 FROM __EFMigrationsHistory") > 0;
-        }
-        catch
-        {
-            migrationsTableExists = false;
-        }
-
-        if (!migrationsTableExists)
-        {            // The database exists but no migrations history table, so tables were likely created manually
-            // Insert migration records to prevent EF from trying to create existing tables
-            using (var command = context.Database.GetDbConnection().CreateCommand())
-            {
-                command.CommandText = @"
-                    IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[__EFMigrationsHistory]') AND type in (N'U'))
-                    BEGIN
-                        CREATE TABLE [__EFMigrationsHistory] (
-                            [MigrationId] nvarchar(150) NOT NULL,
-                            [ProductVersion] nvarchar(32) NOT NULL,
-                            CONSTRAINT [PK___EFMigrationsHistory] PRIMARY KEY ([MigrationId])
-                        )
-                    END";
-                  if (command.Connection != null && command.Connection.State != System.Data.ConnectionState.Open)
-                    command.Connection.Open();
-                
-                command.ExecuteNonQuery();
-                
-                // Add all migrations as "already applied"
-                command.CommandText = @"
-                    IF NOT EXISTS (SELECT * FROM [__EFMigrationsHistory] WHERE [MigrationId] = '20250519075357_AddRoleAndSoftDelete')
-                    BEGIN
-                        INSERT INTO [__EFMigrationsHistory] ([MigrationId], [ProductVersion]) 
-                        VALUES ('20250519075357_AddRoleAndSoftDelete', '9.0.0')
-                    END";
-                command.ExecuteNonQuery();
-            }
-        }
-        else
-        {
-            // Try to apply any pending migrations safely
-            try 
-            {
-                context.Database.Migrate();
-            }
-            catch (Exception ex)
-            {
-                var logger = app.Services.GetRequiredService<ILogger<Program>>();
-                logger.LogWarning(ex, "An error occurred during migration. Database might already be up to date.");
-                // Continue execution - tables might already exist
-            }
-        }
+        // Migrations might already be applied
+        var logger = app.Services.GetRequiredService<ILogger<Program>>();
+        logger.LogWarning(ex, "An error occurred during migration. Database might already be up to date.");
     }
 
-    // Check if admin user exists
+    // Create admin user if it doesn't exist
     if (!context.Users.Any(u => u.Username == "admin"))
     {
-        // Create admin user
-        var adminUser = new SocialApp.Models.User
+        var adminUser = new User
         {
             Username = "admin",
             Email = "admin@example.com",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"), // Set a strong default password
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
             FirstName = "Admin",
             LastName = "User",
             Role = "Admin",
@@ -277,7 +180,7 @@ void SeedDatabase(SocialMediaDbContext context, IConfiguration configuration)
 
         context.Users.Add(adminUser);
         context.SaveChanges();
-
+        
         var logger = app.Services.GetRequiredService<ILogger<Program>>();
         logger.LogInformation("Admin user created successfully");
     }

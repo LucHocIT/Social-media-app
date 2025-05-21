@@ -1,24 +1,29 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using SocialApp.DTOs;
+using SocialApp.Models;
 using SocialApp.Services.User;
 using System.Security.Claims;
+using BCrypt.Net;
 
 namespace SocialApp.Controllers.User;
 
 [ApiController]
 [Route("api/[controller]")]
 public class ProfileController : ControllerBase
-{
-    private readonly IProfileService _profileService;
+{    private readonly IProfileService _profileService;
     private readonly ILogger<ProfileController> _logger;
+    private readonly SocialMediaDbContext _context;
 
     public ProfileController(
         IProfileService profileService,
-        ILogger<ProfileController> logger)
+        ILogger<ProfileController> logger,
+        SocialMediaDbContext context)
     {
         _profileService = profileService;
         _logger = logger;
+        _context = context;
     }
 
     [HttpGet("{userId}")]
@@ -347,5 +352,41 @@ public class ProfileController : ControllerBase
 
         bool isAvailable = await _profileService.IsEmailUniqueAsync(email, currentUserId);
         return Ok(new { isAvailable });
+    }
+
+    [HttpPut("password")]
+    [Authorize]
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDTO passwordDto)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+
+        // Get the user
+        var user = await _context.Users
+            .Where(u => u.Id == currentUserId && !u.IsDeleted)
+            .FirstOrDefaultAsync();
+
+        if (user == null)
+        {
+            return NotFound(new { message = "User not found" });
+        }
+
+        // Verify the current password
+        if (!BCrypt.Net.BCrypt.Verify(passwordDto.CurrentPassword, user.PasswordHash))
+        {
+            return BadRequest(new { message = "Current password is incorrect" });
+        }
+
+        // Update the password
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(passwordDto.NewPassword);
+        user.LastActive = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+        
+        return Ok(new { message = "Password updated successfully" });
     }
 }

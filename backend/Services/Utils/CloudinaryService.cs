@@ -22,16 +22,24 @@ public class CloudinaryUploadResult
 public class CloudinaryService : ICloudinaryService
 {
     private readonly Cloudinary _cloudinary;
-    private readonly ILogger<CloudinaryService> _logger;
-
-    public CloudinaryService(IConfiguration configuration, ILogger<CloudinaryService> logger)
+    private readonly ILogger<CloudinaryService> _logger;    public CloudinaryService(IConfiguration configuration, ILogger<CloudinaryService> logger)
     {
         _logger = logger;
         
-        // Get Cloudinary settings from configuration
-        var cloudName = configuration["Cloudinary:CloudName"];
-        var apiKey = configuration["Cloudinary:ApiKey"];
-        var apiSecret = configuration["Cloudinary:ApiSecret"];
+        // Try to get Cloudinary settings from environment variables first
+        var cloudName = Environment.GetEnvironmentVariable("CLOUDINARY_CLOUD_NAME");
+        var apiKey = Environment.GetEnvironmentVariable("CLOUDINARY_API_KEY");
+        var apiSecret = Environment.GetEnvironmentVariable("CLOUDINARY_API_SECRET");
+        
+        // Fall back to configuration if environment variables are not set
+        if (string.IsNullOrEmpty(cloudName))
+            cloudName = configuration["Cloudinary:CloudName"];
+            
+        if (string.IsNullOrEmpty(apiKey))
+            apiKey = configuration["Cloudinary:ApiKey"];
+            
+        if (string.IsNullOrEmpty(apiSecret))
+            apiSecret = configuration["Cloudinary:ApiSecret"];
 
         if (string.IsNullOrEmpty(cloudName) || string.IsNullOrEmpty(apiKey) || string.IsNullOrEmpty(apiSecret))
         {

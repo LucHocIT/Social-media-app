@@ -9,8 +9,6 @@ namespace SocialApp.Services.User;
 
 public partial class ProfileService : IProfileService
 {
-    private readonly ICloudinaryService _cloudinaryService;
-    
     // Helper method to extract Cloudinary public ID from URL
     private string? ExtractCloudinaryPublicId(string? cloudinaryUrl)
     {

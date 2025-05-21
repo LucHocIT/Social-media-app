@@ -6,7 +6,7 @@ namespace SocialApp.Services.Utils;
 
 public interface ICloudinaryService
 {
-    Task<CloudinaryUploadResult> UploadImageAsync(Stream fileStream, string fileName);
+    Task<CloudinaryUploadResult?> UploadImageAsync(Stream fileStream, string fileName);
     Task<bool> DeleteImageAsync(string publicId);
 }
 
@@ -50,7 +50,7 @@ public class CloudinaryService : ICloudinaryService
         // Set up Cloudinary instance
         var account = new Account(cloudName, apiKey, apiSecret);
         _cloudinary = new Cloudinary(account);
-    }    public async Task<CloudinaryUploadResult> UploadImageAsync(Stream fileStream, string fileName)
+    }    public async Task<CloudinaryUploadResult?> UploadImageAsync(Stream fileStream, string fileName)
     {
         try
         {

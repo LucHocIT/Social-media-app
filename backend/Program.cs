@@ -124,9 +124,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Social App API v1"));
 }
 
-// Cấu hình để phục vụ tệp tĩnh từ thư mục wwwroot
-app.UseStaticFiles();
-
 app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();

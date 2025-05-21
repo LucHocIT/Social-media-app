@@ -1,12 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Http;
 using SocialApp.DTOs;
-using SocialApp.Models;
 using SocialApp.Services.User;
-using SocialApp.Services.Utils;
 using System.Security.Claims;
-using BCrypt.Net;
 
 namespace SocialApp.Controllers.User;
 
@@ -15,72 +12,76 @@ namespace SocialApp.Controllers.User;
 public class ProfileController : ControllerBase
 {    private readonly IProfileService _profileService;
     private readonly ILogger<ProfileController> _logger;
-    private readonly SocialMediaDbContext _context;
-    private readonly ICloudinaryService _cloudinaryService;
 
     public ProfileController(
         IProfileService profileService,
-        ILogger<ProfileController> logger,
-        SocialMediaDbContext context,
-        ICloudinaryService cloudinaryService)
+        ILogger<ProfileController> logger)
     {
         _profileService = profileService;
         _logger = logger;
-        _context = context;
-        _cloudinaryService = cloudinaryService;
     }
 
     [HttpGet("{userId}")]
     public async Task<ActionResult<ProfileDTO>> GetUserProfile(int userId)
     {
-        var profile = await _profileService.GetUserProfileAsync(userId);
-        if (profile == null)
+        try
         {
-            return NotFound(new { message = "User not found" });
-        }
+            var profile = await _profileService.GetUserProfileAsync(userId);
+            if (profile == null)
+            {
+                return NotFound(new { message = "User not found" });
+            }
 
-        // Check if the current user is following this profile
-        if (User.Identity?.IsAuthenticated == true)
+            return Ok(profile);
+        }
+        catch (Exception ex)
         {
-            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            // The following logic would be here - to be implemented in a follow/unfollow feature
+            _logger.LogError(ex, "Error retrieving profile for user {UserId}", userId);
+            return StatusCode(500, new { message = "An error occurred while retrieving the user profile" });
         }
-
-        return Ok(profile);
     }
 
     [HttpGet("username/{username}")]
     public async Task<ActionResult<ProfileDTO>> GetUserProfileByUsername(string username)
     {
-        var profile = await _profileService.GetUserProfileByUsernameAsync(username);
-        if (profile == null)
+        try
         {
-            return NotFound(new { message = "User not found" });
-        }
+            var profile = await _profileService.GetUserProfileByUsernameAsync(username);
+            if (profile == null)
+            {
+                return NotFound(new { message = "User not found" });
+            }
 
-        // Check if the current user is following this profile
-        if (User.Identity?.IsAuthenticated == true)
+            return Ok(profile);
+        }
+        catch (Exception ex)
         {
-            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            // The following logic would be here - to be implemented in a follow/unfollow feature
+            _logger.LogError(ex, "Error retrieving profile for username {Username}", username);
+            return StatusCode(500, new { message = "An error occurred while retrieving the user profile" });
         }
-
-        return Ok(profile);
     }
 
     [HttpGet("me")]
     [Authorize]
     public async Task<ActionResult<ProfileDTO>> GetMyProfile()
     {
-        int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-        var profile = await _profileService.GetUserProfileAsync(currentUserId);
-
-        if (profile == null)
+        try
         {
-            return NotFound(new { message = "Profile not found" });
-        }
+            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            var profile = await _profileService.GetUserProfileAsync(currentUserId);
 
-        return Ok(profile);
+            if (profile == null)
+            {
+                return NotFound(new { message = "Profile not found" });
+            }
+
+            return Ok(profile);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving current user profile");
+            return StatusCode(500, new { message = "An error occurred while retrieving your profile" });
+        }
     }    [HttpPut("update")]
     [HttpPut("")]  // Adding a route alias to support direct PUT to /api/profile
     [Authorize]
@@ -218,7 +219,7 @@ public class ProfileController : ControllerBase
 
         int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
 
-        bool result = await _profileService.UpdateProfilePictureAsync(currentUserId, pictureDto.PictureUrl);
+        bool result = await _profileService.UpdateProfilePictureWithUrlAsync(currentUserId, pictureDto);
         if (!result)
         {
             return BadRequest(new { message = "Failed to update profile picture" });
@@ -234,90 +235,28 @@ public class ProfileController : ControllerBase
             return BadRequest(new { message = "No file uploaded" });
         }
 
-        try
+        int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+        var result = await _profileService.UploadProfilePictureAsync(currentUserId, profilePicture);
+        
+        if (!result.Success)
         {
-            // Validate file type
-            string[] allowedExtensions = { ".jpg", ".jpeg", ".png", ".gif" };
-            string fileExtension = Path.GetExtension(profilePicture.FileName).ToLower();
-            
-            if (!allowedExtensions.Contains(fileExtension))
-            {
-                return BadRequest(new { message = "Only jpg, jpeg, png, and gif files are allowed" });
-            }
-
-            // Upload image to Cloudinary
-            using (var stream = profilePicture.OpenReadStream())
-            {
-                var uploadResult = await _cloudinaryService.UploadImageAsync(stream, profilePicture.FileName);
-                
-                if (uploadResult == null || string.IsNullOrEmpty(uploadResult.Url))
-                {
-                    return BadRequest(new { message = "Failed to upload image to Cloudinary" });
-                }
-                
-                // Update user profile with new image URL
-                int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-                
-                // Get current profile picture URL to delete the old one if it exists
-                var user = await _context.Users
-                    .Where(u => u.Id == currentUserId && !u.IsDeleted)
-                    .FirstOrDefaultAsync();
-                
-                if (user != null && !string.IsNullOrEmpty(user.ProfilePictureUrl) && 
-                    user.ProfilePictureUrl.Contains("cloudinary.com"))
-                {
-                    // Extract public ID and delete old image from Cloudinary
-                    var publicId = ExtractCloudinaryPublicId(user.ProfilePictureUrl);
-                    if (!string.IsNullOrEmpty(publicId))
-                    {
-                        await _cloudinaryService.DeleteImageAsync(publicId);
-                    }
-                }
-                
-                bool result = await _profileService.UpdateProfilePictureAsync(currentUserId, uploadResult.Url);
-                
-                if (!result)
-                {
-                    return BadRequest(new { message = "Failed to update profile picture" });
-                }
-                
-                return Ok(new { 
-                    profilePictureUrl = uploadResult.Url,
-                    publicId = uploadResult.PublicId,
-                    width = uploadResult.Width,
-                    height = uploadResult.Height,
-                    message = "Profile picture uploaded successfully" 
-                });
-            }
+            return BadRequest(new { message = result.Message });
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error uploading profile picture for user");
-            return StatusCode(500, new { message = "An error occurred while uploading the file" });
-        }
+        
+        return Ok(new { 
+            profilePictureUrl = result.ProfilePictureUrl,
+            publicId = result.PublicId,
+            width = result.Width,
+            height = result.Height,
+            message = result.Message 
+        });
     }    [HttpDelete("picture")]
     [Authorize]
     public async Task<IActionResult> RemoveProfilePicture()
     {
         int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
 
-        // Get current profile picture URL
-        var user = await _context.Users
-            .Where(u => u.Id == currentUserId && !u.IsDeleted)
-            .FirstOrDefaultAsync();
-            
-        if (user != null && !string.IsNullOrEmpty(user.ProfilePictureUrl) && 
-            user.ProfilePictureUrl.Contains("cloudinary.com"))
-        {
-            // Extract public ID and delete from Cloudinary
-            var publicId = ExtractCloudinaryPublicId(user.ProfilePictureUrl);
-            if (!string.IsNullOrEmpty(publicId))
-            {
-                await _cloudinaryService.DeleteImageAsync(publicId);
-            }
-        }
-
-        bool result = await _profileService.UpdateProfilePictureAsync(currentUserId, null);
+        bool result = await _profileService.RemoveProfilePictureAsync(currentUserId);
         if (!result)
         {
             return BadRequest(new { message = "Failed to remove profile picture" });
@@ -329,50 +268,67 @@ public class ProfileController : ControllerBase
     [HttpGet("search")]
     public async Task<ActionResult<IEnumerable<ProfileDTO>>> SearchProfiles([FromQuery] ProfileSearchDTO searchDto)
     {
-        if (!ModelState.IsValid)
+        try
         {
-            return BadRequest(ModelState);
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var profiles = await _profileService.SearchProfilesAsync(
+                searchDto.SearchTerm,
+                searchDto.PageNumber,
+                searchDto.PageSize);
+
+            return Ok(profiles);
         }
-
-        var profiles = await _profileService.SearchProfilesAsync(
-            searchDto.SearchTerm,
-            searchDto.PageNumber,
-            searchDto.PageSize);
-
-        // Check if the current user is following each profile
-        if (User.Identity?.IsAuthenticated == true)
+        catch (Exception ex)
         {
-            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            // The following logic would be here - to be implemented in a follow/unfollow feature
+            _logger.LogError(ex, "Error searching profiles with term {SearchTerm}", searchDto.SearchTerm);
+            return StatusCode(500, new { message = "An error occurred while searching for profiles" });
         }
-
-        return Ok(profiles);
     }
 
     [HttpGet("check-username")]
     public async Task<IActionResult> CheckUsernameAvailability([FromQuery] string username)
     {
-        int? currentUserId = null;
-        if (User.Identity?.IsAuthenticated == true)
+        try
         {
-            currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-        }
+            int? currentUserId = null;
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            }
 
-        bool isAvailable = await _profileService.IsUsernameUniqueAsync(username, currentUserId);
-        return Ok(new { isAvailable });
+            bool isAvailable = await _profileService.IsUsernameUniqueAsync(username, currentUserId);
+            return Ok(new { isAvailable });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking username availability for {Username}", username);
+            return StatusCode(500, new { message = "An error occurred while checking username availability" });
+        }
     }
 
     [HttpGet("check-email")]
     public async Task<IActionResult> CheckEmailAvailability([FromQuery] string email)
     {
-        int? currentUserId = null;
-        if (User.Identity?.IsAuthenticated == true)
+        try
         {
-            currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-        }
+            int? currentUserId = null;
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            }
 
-        bool isAvailable = await _profileService.IsEmailUniqueAsync(email, currentUserId);
-        return Ok(new { isAvailable });
+            bool isAvailable = await _profileService.IsEmailUniqueAsync(email, currentUserId);
+            return Ok(new { isAvailable });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking email availability for {Email}", email);
+            return StatusCode(500, new { message = "An error occurred while checking email availability" });
+        }
     }
 
     [HttpPut("password")]
@@ -386,60 +342,15 @@ public class ProfileController : ControllerBase
 
         int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
 
-        // Get the user
-        var user = await _context.Users
-            .Where(u => u.Id == currentUserId && !u.IsDeleted)
-            .FirstOrDefaultAsync();
+        bool result = await _profileService.ChangePasswordAsync(
+            currentUserId, 
+            passwordDto.CurrentPassword, 
+            passwordDto.NewPassword);
 
-        if (user == null)
+        if (!result)
         {
-            return NotFound(new { message = "User not found" });
+            return BadRequest(new { message = "Failed to change password. Please check your current password." });
         }
-
-        // Verify the current password
-        if (!BCrypt.Net.BCrypt.Verify(passwordDto.CurrentPassword, user.PasswordHash))
-        {
-            return BadRequest(new { message = "Current password is incorrect" });
-        }
-
-        // Update the password
-        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(passwordDto.NewPassword);
-        user.LastActive = DateTime.UtcNow;
-
-        await _context.SaveChangesAsync();
-        
-        return Ok(new { message = "Password updated successfully" });
-    }
-
-    // Helper method to extract Cloudinary public ID from URL
-    private string? ExtractCloudinaryPublicId(string? cloudinaryUrl)
-    {
-        if (string.IsNullOrEmpty(cloudinaryUrl) || !cloudinaryUrl.Contains("cloudinary.com"))
-        {
-            return null;
-        }
-        
-        try
-        {
-            // Example: https://res.cloudinary.com/mycloudname/image/upload/v1234567890/profiles/abc123.jpg
-            var uri = new Uri(cloudinaryUrl);
-            var pathSegments = uri.AbsolutePath.Split('/');
-            
-            if (pathSegments.Length >= 4)
-            {
-                // Get the folder and filename (without extension)
-                var folder = pathSegments[pathSegments.Length - 2];
-                var filename = Path.GetFileNameWithoutExtension(pathSegments[pathSegments.Length - 1]);
-                
-                // Return in format "folder/filename"
-                return $"{folder}/{filename}";
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error extracting public ID from Cloudinary URL");
-        }
-        
-        return null;
+          return Ok(new { message = "Password updated successfully" });
     }
 }

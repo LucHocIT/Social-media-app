@@ -88,6 +88,9 @@ CodeCoverage/
 TestResult.xml
 nunit-*.xml
 ># React/Node.js - Frontend
+# Entire frontend directory
+frontend/
+
 # Dependencies
 node_modules/
 npm-debug.log*

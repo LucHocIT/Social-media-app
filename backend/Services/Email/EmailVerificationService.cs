@@ -219,8 +219,7 @@ public class EmailVerificationService : IEmailVerificationService
         
         return Task.FromResult((true, likelyExists, message));
     }
-    
-    // Send verification code to user's email
+      // Send verification code to user's email
     public async Task<(bool Success, string Message)> SendVerificationCodeAsync(string email)
     {
         try
@@ -252,9 +251,13 @@ public class EmailVerificationService : IEmailVerificationService
                 return (false, "Email không tồn tại hoặc không thể gửi thư đến địa chỉ này");
             }
               // Generate and save verification code
-            string verificationCode = await SaveVerificationCodeAsync(email);
+            var (verificationCode, isNewRequest) = await SaveVerificationCodeAsync(email);
             
-            await _context.SaveChangesAsync();
+            // If this is a resend within the 5-minute cooldown period
+            if (!isNewRequest)
+            {
+                return (false, "Vui lòng đợi 5 phút trước khi yêu cầu gửi lại mã xác nhận");
+            }
               // Send verification email using template
             string subject = "Xác nhận email đăng ký - SocialApp";
             string emailBody = _emailService.GenerateVerificationEmailTemplate(verificationCode);
@@ -273,12 +276,12 @@ public class EmailVerificationService : IEmailVerificationService
             _logger.LogError(ex, "Error sending verification code to {Email}", email);
             return (false, "Đã xảy ra lỗi khi gửi mã xác nhận. Vui lòng thử lại sau.");
         }
-    }
-    // Helper method to save a verification code
-    private async Task<string> SaveVerificationCodeAsync(string email)
+    }// Helper method to save a verification code
+    private async Task<(string Code, bool IsNewRequest)> SaveVerificationCodeAsync(string email)
     {
         string verificationCode = GenerateRandomCode();
         DateTime expiresAt = DateTime.UtcNow.AddMinutes(10);
+        bool isNewRequest = true;
         
         // Check for existing code
         var existingCode = await _context.EmailVerificationCodes
@@ -286,7 +289,16 @@ public class EmailVerificationService : IEmailVerificationService
             
         if (existingCode != null)
         {
-            // Update existing code
+            // Check if 5 minutes have passed since code was created (for resend cooldown)
+            var timeSinceCreation = DateTime.UtcNow - existingCode.CreatedAt;
+            if (timeSinceCreation.TotalMinutes < 5 && existingCode.CreatedAt != existingCode.ExpiresAt.AddMinutes(-10))
+            {
+                // Less than 5 minutes passed, return the existing code without updating
+                isNewRequest = false;
+                return (existingCode.Code, isNewRequest);
+            }
+            
+            // More than 5 minutes passed or it's the first verification code - update existing code
             existingCode.Code = verificationCode;
             existingCode.CreatedAt = DateTime.UtcNow;
             existingCode.ExpiresAt = expiresAt;
@@ -306,7 +318,7 @@ public class EmailVerificationService : IEmailVerificationService
         }
         
         await _context.SaveChangesAsync();
-        return verificationCode;
+        return (verificationCode, isNewRequest);
     }
     
     // Helper method to find and validate a verification code
@@ -353,8 +365,7 @@ public class EmailVerificationService : IEmailVerificationService
     {
         var (valid, message, _) = await ValidateCodeAsync(email, code, markAsUsed: true);
         return (valid, message);
-    }
-      // Send password reset code to user's email
+    }      // Send password reset code to user's email
     public async Task<(bool Success, string Message)> SendPasswordResetCodeAsync(string email)
     {
         try
@@ -372,7 +383,13 @@ public class EmailVerificationService : IEmailVerificationService
             }
             
             // Generate and save verification code
-            string verificationCode = await SaveVerificationCodeAsync(email);
+            var (verificationCode, isNewRequest) = await SaveVerificationCodeAsync(email);
+            
+            // If this is a resend within the 5-minute cooldown period
+            if (!isNewRequest)
+            {
+                return (false, "Vui lòng đợi 5 phút trước khi yêu cầu gửi lại mã xác nhận");
+            }
             
             // Send password reset email using template
             string subject = "Đặt lại mật khẩu - SocialApp";

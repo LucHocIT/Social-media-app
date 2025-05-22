@@ -9,6 +9,7 @@ using SocialApp.Services.Auth;
 using SocialApp.Services.Email;
 using SocialApp.Services.User;
 using SocialApp.Services.Utils;
+using SocialApp.Services.Post;
 using Microsoft.OpenApi.Models;
 
 // Load .env file if it exists (this should be before creating the builder)
@@ -54,6 +55,9 @@ builder.Services.AddSwaggerGen(c =>
             Array.Empty<string>()
         }
     });
+
+    // Configure Swagger to handle form file uploads properly
+    c.CustomSchemaIds(type => type.FullName);
 });
 
 // CORS policy
@@ -78,6 +82,7 @@ builder.Services.AddScoped<IEmailVerificationService, EmailVerificationService>(
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IPostService, PostService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 
 // HttpClient for email verification
@@ -153,7 +158,7 @@ void SeedDatabase(SocialMediaDbContext context, IConfiguration configuration)
     {
         // Ensure database exists
         context.Database.EnsureCreated();
-        
+
         // Apply any pending migrations
         context.Database.Migrate();
     }
@@ -181,7 +186,7 @@ void SeedDatabase(SocialMediaDbContext context, IConfiguration configuration)
 
         context.Users.Add(adminUser);
         context.SaveChanges();
-        
+
         var logger = app.Services.GetRequiredService<ILogger<Program>>();
         logger.LogInformation("Admin user created successfully");
     }

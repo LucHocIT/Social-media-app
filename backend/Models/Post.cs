@@ -10,6 +10,10 @@ public partial class Post
     public string Content { get; set; } = null!;
 
     public string? MediaUrl { get; set; }
+    
+    public string? MediaType { get; set; } // "image", "video", "file"
+    
+    public string? MediaPublicId { get; set; }
 
     public DateTime CreatedAt { get; set; }
 

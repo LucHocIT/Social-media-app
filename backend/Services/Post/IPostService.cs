@@ -17,5 +17,5 @@ public interface IPostService
     Task<bool> LikePostAsync(int userId, int postId);
     Task<bool> UnlikePostAsync(int userId, int postId);
     Task<IEnumerable<PostResponseDTO>> GetLikedPostsByUserAsync(int userId, int pageNumber = 1, int pageSize = 10, int? currentUserId = null);
-    Task<UploadMediaResult> UploadPostMediaAsync(int userId, IFormFile media);
+    Task<UploadMediaResult> UploadPostMediaAsync(int userId, IFormFile media, string mediaType = "image");
 }

@@ -1,17 +1,17 @@
 using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
 using Microsoft.Extensions.Configuration;
-using System.Net;
-using System.Net.Security;
-using System.Security.Authentication;
-using System.Security.Cryptography.X509Certificates;
+using Microsoft.Extensions.Logging;
+using System.IO;
 
 namespace SocialApp.Services.Utils;
 
 public interface ICloudinaryService
 {
     Task<CloudinaryUploadResult?> UploadImageAsync(Stream fileStream, string fileName);
-    Task<bool> DeleteImageAsync(string publicId);
+    Task<CloudinaryUploadResult?> UploadVideoAsync(Stream fileStream, string fileName);
+    Task<CloudinaryUploadResult?> UploadFileAsync(Stream fileStream, string fileName);
+    Task<bool> DeleteMediaAsync(string publicId);
 }
 
 public class CloudinaryUploadResult
@@ -21,6 +21,10 @@ public class CloudinaryUploadResult
     public string? Format { get; set; }
     public int Width { get; set; }
     public int Height { get; set; }
+    public long Duration { get; set; }  // For videos (in seconds)
+    public long FileSize { get; set; }  // Size in bytes
+    public string? ResourceType { get; set; } // "image", "video", or "raw"
+    public string? MediaType { get; set; } // MIME type
 }
 
 public class CloudinaryService : ICloudinaryService
@@ -29,15 +33,6 @@ public class CloudinaryService : ICloudinaryService
     private readonly ILogger<CloudinaryService> _logger;    public CloudinaryService(IConfiguration configuration, ILogger<CloudinaryService> logger)
     {
         _logger = logger;
-        
-        // Configure TLS settings for secure connections
-        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls13;
-        
-        // Configure SSL certificate validation
-        ServicePointManager.ServerCertificateValidationCallback += (sender, certificate, chain, sslPolicyErrors) => {
-            _logger.LogInformation("SSL Certificate validation. Policy Errors: {PolicyErrors}", sslPolicyErrors);
-            return true; // Accept all certificates (in production, you might want to be more selective)
-        };
         
         // Try to get Cloudinary settings from environment variables first
         var cloudName = Environment.GetEnvironmentVariable("CLOUDINARY_CLOUD_NAME");
@@ -70,6 +65,11 @@ public class CloudinaryService : ICloudinaryService
         const int maxRetries = 3;
         int attemptCount = 0;
         
+        // Create a copy of the stream that we can reuse for retries
+        using var memoryStream = new MemoryStream();
+        await fileStream.CopyToAsync(memoryStream);
+        memoryStream.Position = 0;
+        
         while (attemptCount < maxRetries)
         {
             try
@@ -77,25 +77,22 @@ public class CloudinaryService : ICloudinaryService
                 attemptCount++;
                 _logger.LogInformation("Attempting to upload image to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
                 
-                // Reset stream position if it's not at the beginning and is seekable
-                if (fileStream.Position != 0 && fileStream.CanSeek)
-                {
-                    fileStream.Seek(0, SeekOrigin.Begin);
-                }
+                // Reset memory stream position for each attempt
+                memoryStream.Position = 0;
                 
                 // Prepare upload parameters
                 var uploadParams = new ImageUploadParams
                 {
-                    File = new FileDescription(fileName, fileStream),
-                    Folder = "profiles",
+                    File = new FileDescription(fileName, memoryStream),
+                    Folder = "images",  // Changed from "profiles" to be more generic for all images
                     UseFilename = true,
                     UniqueFilename = true,
                     Overwrite = true,
                     Transformation = new Transformation()
-                        .Width(500)
-                        .Height(500)
-                        .Crop("fill")
-                        .Gravity("face")
+                        .Width(1200)
+                        .Height(1200)
+                        .Crop("limit")  // Limit size while maintaining aspect ratio
+                        .Quality("auto")  // Automatic quality optimization
                 };
 
                 // Upload image to Cloudinary
@@ -117,13 +114,31 @@ public class CloudinaryService : ICloudinaryService
                 }
 
                 _logger.LogInformation("Successfully uploaded image to Cloudinary: {PublicId}", uploadResult.PublicId);
+                
+                // Determine image MIME type based on format
+                string mediaType = "image/jpeg"; // Default
+                if (!string.IsNullOrEmpty(uploadResult.Format))
+                {
+                    switch (uploadResult.Format.ToLowerInvariant())
+                    {
+                        case "png": mediaType = "image/png"; break;
+                        case "gif": mediaType = "image/gif"; break;
+                        case "webp": mediaType = "image/webp"; break;
+                        case "svg": mediaType = "image/svg+xml"; break;
+                        case "bmp": mediaType = "image/bmp"; break;
+                        case "tiff": mediaType = "image/tiff"; break;
+                    }
+                }
+                
                 return new CloudinaryUploadResult
                 {
                     Url = uploadResult.SecureUrl.ToString(),
-                    PublicId = uploadResult.PublicId,
-                    Format = uploadResult.Format,
+                    PublicId = uploadResult.PublicId,                    Format = uploadResult.Format,
                     Width = uploadResult.Width,
-                    Height = uploadResult.Height
+                    Height = uploadResult.Height,
+                    FileSize = uploadResult.Bytes,
+                    ResourceType = "image",
+                    MediaType = mediaType
                 };
             }
             catch (Exception ex)
@@ -142,7 +157,182 @@ public class CloudinaryService : ICloudinaryService
         }
         
         return null;
-    }public async Task<bool> DeleteImageAsync(string publicId)
+    }public async Task<CloudinaryUploadResult?> UploadVideoAsync(Stream fileStream, string fileName)
+    {
+        const int maxRetries = 3;
+        int attemptCount = 0;
+        
+        // Create a copy of the stream that we can reuse for retries
+        using var memoryStream = new MemoryStream();
+        await fileStream.CopyToAsync(memoryStream);
+        memoryStream.Position = 0;
+        
+        while (attemptCount < maxRetries)
+        {
+            try
+            {
+                attemptCount++;
+                _logger.LogInformation("Attempting to upload video to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
+                
+                // Reset memory stream position for each attempt
+                memoryStream.Position = 0;
+                
+                // Prepare upload parameters
+                var uploadParams = new VideoUploadParams
+                {
+                    File = new FileDescription(fileName, memoryStream),
+                    Folder = "videos",
+                    UseFilename = true,
+                    UniqueFilename = true,
+                    Overwrite = true,                    // Optional transformations for videos
+                    EagerTransforms = new List<Transformation>()
+                    {
+                        new Transformation().Quality("auto").FetchFormat("mp4")
+                    },
+                    EagerAsync = true
+                };
+
+                // Upload video to Cloudinary
+                var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+
+                if (uploadResult.Error != null)
+                {
+                    _logger.LogError("Cloudinary video upload error: {ErrorMessage}", uploadResult.Error.Message);
+                    
+                    // If this is our last attempt, return null
+                    if (attemptCount >= maxRetries)
+                    {
+                        return null;
+                    }
+                    
+                    // Wait before the next retry
+                    await Task.Delay(1000 * attemptCount); // Exponential backoff
+                    continue;
+                }
+
+                _logger.LogInformation("Successfully uploaded video to Cloudinary: {PublicId}", uploadResult.PublicId);
+                return new CloudinaryUploadResult
+                {
+                    Url = uploadResult.SecureUrl.ToString(),
+                    PublicId = uploadResult.PublicId,
+                    Format = uploadResult.Format,                    Width = uploadResult.Width,
+                    Height = uploadResult.Height,
+                    Duration = (long)uploadResult.Duration,
+                    FileSize = uploadResult.Bytes,
+                    ResourceType = "video",
+                    MediaType = uploadResult.Format
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error uploading video to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
+                
+                // If this is our last attempt, return null
+                if (attemptCount >= maxRetries)
+                {
+                    return null;
+                }
+                
+                // Wait before the next retry with exponential backoff
+                await Task.Delay(1000 * attemptCount);
+            }
+        }
+        
+        return null;
+    }public async Task<CloudinaryUploadResult?> UploadFileAsync(Stream fileStream, string fileName)
+    {
+        const int maxRetries = 3;
+        int attemptCount = 0;
+        
+        // Create a copy of the stream that we can reuse for retries
+        using var memoryStream = new MemoryStream();
+        await fileStream.CopyToAsync(memoryStream);
+        memoryStream.Position = 0;
+        
+        while (attemptCount < maxRetries)
+        {
+            try
+            {
+                attemptCount++;
+                _logger.LogInformation("Attempting to upload file to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
+                
+                // Reset memory stream position for each attempt
+                memoryStream.Position = 0;
+                
+                // Prepare upload parameters
+                var uploadParams = new RawUploadParams
+                {
+                    File = new FileDescription(fileName, memoryStream),
+                    Folder = "files",
+                    UseFilename = true,
+                    UniqueFilename = true,
+                    Overwrite = true
+                };
+
+                // Upload file to Cloudinary
+                var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+
+                if (uploadResult.Error != null)
+                {
+                    _logger.LogError("Cloudinary file upload error: {ErrorMessage}", uploadResult.Error.Message);
+                    
+                    // If this is our last attempt, return null
+                    if (attemptCount >= maxRetries)
+                    {
+                        return null;
+                    }
+                    
+                    // Wait before the next retry
+                    await Task.Delay(1000 * attemptCount); // Exponential backoff
+                    continue;
+                }
+
+                _logger.LogInformation("Successfully uploaded file to Cloudinary: {PublicId}", uploadResult.PublicId);
+                
+                // Determine file type from extension
+                string mediaType = "application/octet-stream"; // Default
+                string extension = Path.GetExtension(fileName).ToLowerInvariant();
+                if (!string.IsNullOrEmpty(extension))
+                {
+                    // Common file types
+                    switch (extension)
+                    {
+                        case ".pdf": mediaType = "application/pdf"; break;
+                        case ".doc": case ".docx": mediaType = "application/msword"; break;
+                        case ".xls": case ".xlsx": mediaType = "application/vnd.ms-excel"; break;
+                        case ".ppt": case ".pptx": mediaType = "application/vnd.ms-powerpoint"; break;
+                        case ".txt": mediaType = "text/plain"; break;
+                        case ".zip": mediaType = "application/zip"; break;
+                        case ".rar": mediaType = "application/x-rar-compressed"; break;
+                    }
+                }
+                
+                return new CloudinaryUploadResult
+                {
+                    Url = uploadResult.SecureUrl.ToString(),                    PublicId = uploadResult.PublicId,
+                    Format = extension.TrimStart('.'),
+                    FileSize = uploadResult.Bytes,
+                    ResourceType = "raw",
+                    MediaType = mediaType
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error uploading file to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
+                
+                // If this is our last attempt, return null
+                if (attemptCount >= maxRetries)
+                {
+                    return null;
+                }
+                
+                // Wait before the next retry with exponential backoff
+                await Task.Delay(1000 * attemptCount);
+            }
+        }
+        
+        return null;
+    }public async Task<bool> DeleteMediaAsync(string publicId)
     {
         try
         {
@@ -151,7 +341,7 @@ public class CloudinaryService : ICloudinaryService
 
             if (result.Error != null)
             {
-                _logger.LogError("Error deleting image from Cloudinary: {ErrorMessage}", result.Error.Message);
+                _logger.LogError("Error deleting media from Cloudinary: {ErrorMessage}", result.Error.Message);
                 return false;
             }
 
@@ -159,7 +349,7 @@ public class CloudinaryService : ICloudinaryService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error deleting image from Cloudinary");
+            _logger.LogError(ex, "Error deleting media from Cloudinary");
             return false;
         }
     }

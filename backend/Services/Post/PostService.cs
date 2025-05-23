@@ -38,12 +38,12 @@ public class PostService : IPostService
             {
                 _logger.LogWarning("Attempted to create post for non-existent or deleted user: {UserId}", userId);
                 return null;
-            }
-
-            var post = new Models.Post
+            }            var post = new Models.Post
             {
                 Content = postDto.Content,
                 MediaUrl = postDto.MediaUrl,
+                MediaType = postDto.MediaType,
+                MediaPublicId = postDto.MediaPublicId,
                 CreatedAt = DateTime.UtcNow,
                 UserId = userId
             };
@@ -71,10 +71,10 @@ public class PostService : IPostService
             {
                 _logger.LogWarning("Post {PostId} not found for user {UserId}", postId, userId);
                 return null;
-            }
-
-            post.Content = postDto.Content;
+            }            post.Content = postDto.Content;
             post.MediaUrl = postDto.MediaUrl;
+            post.MediaType = postDto.MediaType;
+            post.MediaPublicId = postDto.MediaPublicId;
             post.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
@@ -366,8 +366,7 @@ public class PostService : IPostService
             _logger.LogError(ex, "Error retrieving liked posts for user {UserId}", userId);
             throw;
         }
-    }
-    public async Task<UploadMediaResult> UploadPostMediaAsync(int userId, IFormFile media)
+    }    public async Task<UploadMediaResult> UploadPostMediaAsync(int userId, IFormFile media, string mediaType = "image")
     {
         try
         {
@@ -379,40 +378,66 @@ public class PostService : IPostService
                     Message = "No file uploaded"
                 };
             }
+            
+            // Validate media type parameter
+            if (!IsValidMediaType(mediaType))
+            {
+                return new UploadMediaResult
+                {
+                    Success = false,
+                    Message = "Invalid media type. Allowed values are 'image', 'video', and 'file'."
+                };
+            }
 
-            // Validate file type (you might want to restrict to images/videos only)
-            var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp", "video/mp4" };
+            // Get allowed MIME types based on the media type
+            var allowedTypes = GetAllowedMimeTypes(mediaType);
+            
+            // Check if the content type is allowed for the selected media type
             if (!allowedTypes.Contains(media.ContentType.ToLower()))
             {
                 return new UploadMediaResult
                 {
                     Success = false,
-                    Message = "Invalid file type. Only JPEG, PNG, GIF, WebP and MP4 are allowed."
+                    Message = $"Invalid file type for {mediaType}. Allowed types: {string.Join(", ", allowedTypes)}"
                 };
             }
 
-            // Validate file size (e.g., limit to 10MB)
-            var maxSize = 10 * 1024 * 1024; // 10MB
+            // Validate file size (limit varies by media type)
+            long maxSize = GetMaxFileSizeForMediaType(mediaType);
             if (media.Length > maxSize)
             {
                 return new UploadMediaResult
                 {
                     Success = false,
-                    Message = "File size exceeds the maximum allowed (10MB)."
+                    Message = $"File size exceeds the maximum allowed ({maxSize / (1024 * 1024)}MB)."
                 };
             }
 
-            // Use CloudinaryService to upload the image
+            // Use appropriate CloudinaryService upload method based on media type
             using (var stream = media.OpenReadStream())
             {
-                var uploadResult = await _cloudinaryService.UploadImageAsync(stream, $"post_{userId}_{Guid.NewGuid()}");
+                var fileName = $"{mediaType}_{userId}_{Guid.NewGuid()}";
+                CloudinaryUploadResult? uploadResult = null;
+                
+                switch (mediaType.ToLower())
+                {
+                    case "image":
+                        uploadResult = await _cloudinaryService.UploadImageAsync(stream, fileName);
+                        break;
+                    case "video":
+                        uploadResult = await _cloudinaryService.UploadVideoAsync(stream, fileName);
+                        break;
+                    case "file":
+                        uploadResult = await _cloudinaryService.UploadFileAsync(stream, fileName);
+                        break;
+                }
 
                 if (uploadResult == null)
                 {
                     return new UploadMediaResult
                     {
                         Success = false,
-                        Message = "Failed to upload media"
+                        Message = $"Failed to upload {mediaType}"
                     };
                 }
 
@@ -424,13 +449,17 @@ public class PostService : IPostService
                     Width = uploadResult.Width,
                     Height = uploadResult.Height,
                     Format = uploadResult.Format,
-                    Message = "Media uploaded successfully"
+                    Duration = uploadResult.Duration,
+                    FileSize = uploadResult.FileSize,
+                    ResourceType = uploadResult.ResourceType,
+                    MediaType = uploadResult.MediaType,
+                    Message = $"{mediaType} uploaded successfully"
                 };
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error uploading media for user {UserId}", userId);
+            _logger.LogError(ex, "Error uploading {MediaType} for user {UserId}", mediaType, userId);
             return new UploadMediaResult
             {
                 Success = false,
@@ -447,13 +476,14 @@ public class PostService : IPostService
         if (currentUserId.HasValue)
         {
             isLiked = post.Likes.Any(l => l.UserId == currentUserId.Value);
-        }
-
-        return new PostResponseDTO
+        }        return new PostResponseDTO
         {
             Id = post.Id,
             Content = post.Content,
             MediaUrl = post.MediaUrl,
+            MediaType = post.MediaType,            MediaMimeType = (post.MediaType != null && post.MediaUrl != null) 
+                ? GetMimeTypeForMediaType(post.MediaType, post.MediaUrl)
+                : null,
             CreatedAt = post.CreatedAt,
             UpdatedAt = post.UpdatedAt,
             UserId = post.UserId,
@@ -463,5 +493,118 @@ public class PostService : IPostService
             CommentsCount = post.Comments.Count,
             IsLikedByCurrentUser = isLiked
         };
+    }
+
+    // Helper method to validate the media type parameter
+    private bool IsValidMediaType(string mediaType)
+    {
+        if (string.IsNullOrEmpty(mediaType))
+            return false;
+            
+        var validTypes = new[] { "image", "video", "file" };
+        return validTypes.Contains(mediaType.ToLower());
+    }
+    
+    // Helper method to get allowed MIME types for each media type
+    private string[] GetAllowedMimeTypes(string mediaType)
+    {
+        switch (mediaType.ToLower())
+        {
+            case "image":
+                return new[] { 
+                    "image/jpeg", "image/png", "image/gif", "image/webp", 
+                    "image/svg+xml", "image/bmp", "image/tiff" 
+                };
+            case "video":
+                return new[] { 
+                    "video/mp4", "video/mpeg", "video/quicktime", "video/x-msvideo", 
+                    "video/x-ms-wmv", "video/webm", "video/x-flv" 
+                };
+            case "file":
+                return new[] { 
+                    "application/pdf", "application/msword", "application/vnd.ms-excel",
+                    "application/vnd.ms-powerpoint", "text/plain", "application/zip",
+                    "application/x-rar-compressed", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                };
+            default:
+                return Array.Empty<string>();
+        }
+    }
+    
+    // Helper method to get max file size for each media type
+    private long GetMaxFileSizeForMediaType(string mediaType)
+    {
+        switch (mediaType.ToLower())
+        {
+            case "image":
+                return 10 * 1024 * 1024; // 10 MB for images
+            case "video":
+                return 100 * 1024 * 1024; // 100 MB for videos
+            case "file":
+                return 25 * 1024 * 1024; // 25 MB for other files
+            default:
+                return 5 * 1024 * 1024; // 5 MB default
+        }
+    }
+
+    // Helper method to get MIME type from media type and URL
+    private string GetMimeTypeForMediaType(string mediaType, string url)
+    {
+        if (string.IsNullOrEmpty(mediaType) || string.IsNullOrEmpty(url))
+            return "application/octet-stream"; // Default MIME type
+            
+        // Extract file extension from URL
+        string extension = System.IO.Path.GetExtension(url).ToLowerInvariant();
+        if (string.IsNullOrEmpty(extension))
+            return "application/octet-stream";
+        
+        extension = extension.TrimStart('.');
+            
+        switch (mediaType?.ToLower())
+        {
+            case "image":
+                switch (extension)
+                {
+                    case "jpg": case "jpeg": return "image/jpeg";
+                    case "png": return "image/png";
+                    case "gif": return "image/gif";
+                    case "webp": return "image/webp";
+                    case "svg": return "image/svg+xml";
+                    case "bmp": return "image/bmp";
+                    case "tiff": return "image/tiff";
+                    default: return "image/jpeg"; // Default image type
+                }
+                
+            case "video":
+                switch (extension)
+                {
+                    case "mp4": return "video/mp4";
+                    case "mpeg": return "video/mpeg";
+                    case "mov": return "video/quicktime";
+                    case "avi": return "video/x-msvideo";
+                    case "wmv": return "video/x-ms-wmv";
+                    case "webm": return "video/webm";
+                    case "flv": return "video/x-flv";
+                    default: return "video/mp4"; // Default video type
+                }
+                
+            case "file":
+                switch (extension)
+                {
+                    case "pdf": return "application/pdf";
+                    case "doc": case "docx": return "application/msword";
+                    case "xls": case "xlsx": return "application/vnd.ms-excel";
+                    case "ppt": case "pptx": return "application/vnd.ms-powerpoint";
+                    case "txt": return "text/plain";
+                    case "zip": return "application/zip";
+                    case "rar": return "application/x-rar-compressed";
+                    default: return "application/octet-stream";
+                }
+                
+            default:
+                return "application/octet-stream";
+        }
     }
 }

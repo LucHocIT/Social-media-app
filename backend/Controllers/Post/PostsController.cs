@@ -244,8 +244,7 @@ public class PostsController : ControllerBase
             _logger.LogError(ex, "Error unliking post {PostId}", postId);
             return StatusCode(500, new { message = "An error occurred while unliking the post" });
         }
-    }
-    [HttpPost("upload-media")]
+    }    [HttpPost("upload-media")]
     [Authorize]
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> UploadMedia([FromForm] MediaUploadDTO uploadDto)
@@ -258,7 +257,7 @@ public class PostsController : ControllerBase
             }
 
             int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            var result = await _postService.UploadPostMediaAsync(currentUserId, uploadDto.Media);
+            var result = await _postService.UploadPostMediaAsync(currentUserId, uploadDto.Media, uploadDto.MediaType);
 
             if (!result.Success)
             {
@@ -272,6 +271,10 @@ public class PostsController : ControllerBase
                 width = result.Width,
                 height = result.Height,
                 format = result.Format,
+                duration = result.Duration,
+                fileSize = result.FileSize,
+                resourceType = result.ResourceType,
+                mediaType = result.MediaType,
                 message = result.Message
             });
         }

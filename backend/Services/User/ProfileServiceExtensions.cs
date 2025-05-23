@@ -88,12 +88,11 @@ public partial class ProfileService : IProfileService
                 // Delete old image from Cloudinary if exists
                 if (!string.IsNullOrEmpty(user.ProfilePictureUrl) && 
                     user.ProfilePictureUrl.Contains("cloudinary.com"))
-                {
-                    // Extract public ID and delete old image from Cloudinary
+                {                    // Extract public ID and delete old image from Cloudinary
                     var publicId = ExtractCloudinaryPublicId(user.ProfilePictureUrl);
                     if (!string.IsNullOrEmpty(publicId))
                     {
-                        await _cloudinaryService.DeleteImageAsync(publicId);
+                        await _cloudinaryService.DeleteMediaAsync(publicId);
                     }
                 }
                 
@@ -138,12 +137,11 @@ public partial class ProfileService : IProfileService
                 
             if (!string.IsNullOrEmpty(user.ProfilePictureUrl) && 
                 user.ProfilePictureUrl.Contains("cloudinary.com"))
-            {
-                // Extract public ID and delete from Cloudinary
+            {                // Extract public ID and delete from Cloudinary
                 var publicId = ExtractCloudinaryPublicId(user.ProfilePictureUrl);
                 if (!string.IsNullOrEmpty(publicId))
                 {
-                    await _cloudinaryService.DeleteImageAsync(publicId);
+                    await _cloudinaryService.DeleteMediaAsync(publicId);
                 }
             }
 

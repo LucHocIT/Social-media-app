@@ -6,7 +6,7 @@ using System.ComponentModel.DataAnnotations;
 namespace SocialApp.DTOs
 {
     #region Post DTOs
-
+    
     public class CreatePostDTO
     {
         [Required]
@@ -14,6 +14,10 @@ namespace SocialApp.DTOs
         public string Content { get; set; } = null!;
 
         public string? MediaUrl { get; set; }
+        
+        public string? MediaType { get; set; } // "image", "video", "file"
+        
+        public string? MediaPublicId { get; set; }
     }
 
     public class UpdatePostDTO
@@ -23,21 +27,25 @@ namespace SocialApp.DTOs
         public string Content { get; set; } = null!;
 
         public string? MediaUrl { get; set; }
+        
+        public string? MediaType { get; set; } // "image", "video", "file"
+        public string? MediaPublicId { get; set; }
     }
-
+    
     public class PostResponseDTO
     {
         public int Id { get; set; }
         public string Content { get; set; } = null!;
         public string? MediaUrl { get; set; }
+        public string? MediaType { get; set; } // "image", "video", "file"
+        public string? MediaMimeType { get; set; } // MIME type for the media
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public int UserId { get; set; }
         public string Username { get; set; } = null!;
         public string? ProfilePictureUrl { get; set; }
         public int LikesCount { get; set; }
-        public int CommentsCount { get; set; }
-        public bool IsLikedByCurrentUser { get; set; }
+        public int CommentsCount { get; set; }        public bool IsLikedByCurrentUser { get; set; }
     }
 
     public class PostPagedResponseDTO
@@ -62,10 +70,13 @@ namespace SocialApp.DTOs
     #endregion
 
     #region Media DTOs
-
+    
     public class MediaUploadDTO
     {
         public IFormFile? Media { get; set; }
+        
+        [StringLength(20)]
+        public string MediaType { get; set; } = "image"; // Default is image; other values: "video", "file"
     }
 
     public class UploadMediaResult
@@ -77,6 +88,10 @@ namespace SocialApp.DTOs
         public int Width { get; set; }
         public int Height { get; set; }
         public string? Format { get; set; }
+        public long Duration { get; set; }  // For videos (in seconds)
+        public long FileSize { get; set; }  // Size in bytes
+        public string? ResourceType { get; set; } // "image", "video", or "raw"
+        public string? MediaType { get; set; } // MIME type
     }
 
     #endregion

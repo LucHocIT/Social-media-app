@@ -4,9 +4,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System;
 using System.IO;
-using System.Net.Http;
 using System.Threading.Tasks;
-using System.Security.Authentication;
 
 namespace SocialApp.Services.Utils;
 
@@ -59,26 +57,9 @@ public class CloudinaryService : ICloudinaryService
         {
             _logger.LogError("Cloudinary configuration is missing or incomplete");
             throw new InvalidOperationException("Cloudinary configuration is missing or incomplete");
-        }
-
-        // Configure HttpClient with proper SSL/TLS settings
-        var httpClientHandler = new HttpClientHandler
-        {
-            SslProtocols = System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13,
-            ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true // For development only
-        };
-
-        var httpClient = new HttpClient(httpClientHandler);
-        
-        // Set up Cloudinary instance with custom HttpClient
+        }        // Set up Cloudinary instance
         var account = new Account(cloudName, apiKey, apiSecret);
-        _cloudinary = new Cloudinary(account)
-        {
-            Api = { 
-                Timeout = 60000, // 60 seconds timeout
-                HttpClient = httpClient
-            }
-        };
+        _cloudinary = new Cloudinary(account);
     }    public async Task<CloudinaryUploadResult?> UploadImageAsync(Stream fileStream, string fileName)
     {
         const int maxRetries = 3;

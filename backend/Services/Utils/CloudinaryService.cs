@@ -11,6 +11,7 @@ namespace SocialApp.Services.Utils;
 public interface ICloudinaryService
 {
     Task<CloudinaryUploadResult?> UploadImageAsync(Stream fileStream, string fileName);
+    Task<CloudinaryUploadResult?> UploadImageWithTransformationAsync(Stream fileStream, string fileName, Dictionary<string, string> transformations);
     Task<CloudinaryUploadResult?> UploadVideoAsync(Stream fileStream, string fileName);
     Task<CloudinaryUploadResult?> UploadFileAsync(Stream fileStream, string fileName);
     Task<bool> DeleteMediaAsync(string publicId);
@@ -161,6 +162,112 @@ public class CloudinaryService : ICloudinaryService
         }
         
         return null;
+    }public async Task<CloudinaryUploadResult?> UploadImageWithTransformationAsync(Stream fileStream, string fileName, Dictionary<string, string> transformations)
+    {
+        const int maxRetries = 3;
+        int attemptCount = 0;
+        
+        // Create a copy of the stream that we can reuse for retries
+        byte[] fileBytes;
+        using (var memoryStream = new MemoryStream())
+        {
+            await fileStream.CopyToAsync(memoryStream);
+            fileBytes = memoryStream.ToArray();
+        }
+        
+        while (attemptCount < maxRetries)
+        {
+            attemptCount++;
+            _logger.LogInformation("Attempting to upload image with transformations to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
+            
+            // Create a new memory stream for each attempt
+            using var uploadStream = new MemoryStream(fileBytes);
+            
+            try
+            {
+                // Prepare upload parameters with custom transformations
+                var uploadParams = new ImageUploadParams
+                {
+                    File = new FileDescription(fileName, uploadStream),
+                    Folder = "profiles", // Đặt folder profiles cho ảnh đại diện
+                    UseFilename = true,
+                    UniqueFilename = true,
+                    Overwrite = true
+                };
+                
+                // Add custom transformations if provided
+                var transformation = new Transformation();
+                foreach (var param in transformations)
+                {
+                    transformation.Add(param.Key, param.Value);
+                }
+                
+                // Apply the transformations
+                uploadParams.Transformation = transformation;
+
+                // Upload image to Cloudinary
+                var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+
+                if (uploadResult.Error != null)
+                {
+                    _logger.LogError("Cloudinary upload error: {ErrorMessage}", uploadResult.Error.Message);
+                    
+                    // If this is our last attempt, return null
+                    if (attemptCount >= maxRetries)
+                    {
+                        return null;
+                    }
+                    
+                    // Wait before the next retry with exponential backoff
+                    await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attemptCount - 1)));
+                    continue;
+                }
+
+                _logger.LogInformation("Successfully uploaded transformed image to Cloudinary: {PublicId}", uploadResult.PublicId);
+
+                // Determine image MIME type based on format
+                string mediaType = "image/jpeg"; // Default
+                if (!string.IsNullOrEmpty(uploadResult.Format))
+                {
+                    switch (uploadResult.Format.ToLowerInvariant())
+                    {
+                        case "png": mediaType = "image/png"; break;
+                        case "gif": mediaType = "image/gif"; break;
+                        case "webp": mediaType = "image/webp"; break;
+                        case "svg": mediaType = "image/svg+xml"; break;
+                        case "bmp": mediaType = "image/bmp"; break;
+                        case "tiff": mediaType = "image/tiff"; break;
+                    }
+                }
+                
+                return new CloudinaryUploadResult
+                {
+                    Url = uploadResult.SecureUrl.ToString(),
+                    PublicId = uploadResult.PublicId,
+                    Format = uploadResult.Format,
+                    Width = uploadResult.Width,
+                    Height = uploadResult.Height,
+                    FileSize = uploadResult.Bytes,
+                    ResourceType = "image",
+                    MediaType = mediaType
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error uploading transformed image to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
+                
+                // If this is our last attempt, return null
+                if (attemptCount >= maxRetries)
+                {
+                    return null;
+                }
+                
+                // Wait before the next retry with exponential backoff
+                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attemptCount - 1)));
+            }
+        }
+        
+        return null; // If we reach here, all attempts failed
     }public async Task<CloudinaryUploadResult?> UploadVideoAsync(Stream fileStream, string fileName)
     {
         const int maxRetries = 3;

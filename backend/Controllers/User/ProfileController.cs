@@ -252,7 +252,35 @@ public class ProfileController : ControllerBase
             height = result.Height,
             message = result.Message 
         });
-    }    [HttpDelete("picture")]
+    }
+
+    [HttpPost("picture/crop")]
+    [Authorize]
+    public async Task<IActionResult> UploadCroppedProfilePicture(IFormFile profilePicture, [FromForm] string cropData)
+    {
+        if (profilePicture == null)
+        {
+            return BadRequest(new { message = "No file uploaded" });
+        }
+
+        int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+        var result = await _profileService.UploadCroppedProfilePictureAsync(currentUserId, profilePicture, cropData);
+        
+        if (!result.Success)
+        {
+            return BadRequest(new { message = result.Message });
+        }
+        
+        return Ok(new { 
+            profilePictureUrl = result.ProfilePictureUrl,
+            publicId = result.PublicId,
+            width = result.Width,
+            height = result.Height,
+            message = result.Message 
+        });
+    }
+
+    [HttpDelete("picture")]
     [Authorize]
     public async Task<IActionResult> RemoveProfilePicture()
     {

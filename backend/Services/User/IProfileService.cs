@@ -21,6 +21,7 @@ public interface IProfileService
     
     // Cloudinary-related methods
     Task<UploadProfilePictureResult> UploadProfilePictureAsync(int userId, IFormFile profilePicture);
+    Task<UploadProfilePictureResult> UploadCroppedProfilePictureAsync(int userId, IFormFile profilePicture, string cropData);
     Task<bool> RemoveProfilePictureAsync(int userId);
     Task<bool> UpdateProfilePictureWithUrlAsync(int userId, ProfilePictureDTO pictureDto);
     Task<bool> ChangePasswordAsync(int userId, string currentPassword, string newPassword);

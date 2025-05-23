@@ -66,33 +66,36 @@ public class CloudinaryService : ICloudinaryService
         int attemptCount = 0;
         
         // Create a copy of the stream that we can reuse for retries
-        using var memoryStream = new MemoryStream();
-        await fileStream.CopyToAsync(memoryStream);
-        memoryStream.Position = 0;
+        byte[] fileBytes;
+        using (var memoryStream = new MemoryStream())
+        {
+            await fileStream.CopyToAsync(memoryStream);
+            fileBytes = memoryStream.ToArray();
+        }
         
         while (attemptCount < maxRetries)
         {
+            attemptCount++;
+            _logger.LogInformation("Attempting to upload image to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
+            
+            // Create a new memory stream for each attempt
+            using var uploadStream = new MemoryStream(fileBytes);
+            
             try
             {
-                attemptCount++;
-                _logger.LogInformation("Attempting to upload image to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
-                
-                // Reset memory stream position for each attempt
-                memoryStream.Position = 0;
-                
                 // Prepare upload parameters
                 var uploadParams = new ImageUploadParams
                 {
-                    File = new FileDescription(fileName, memoryStream),
-                    Folder = "images",  // Changed from "profiles" to be more generic for all images
+                    File = new FileDescription(fileName, uploadStream),
+                    Folder = "images",
                     UseFilename = true,
                     UniqueFilename = true,
                     Overwrite = true,
                     Transformation = new Transformation()
                         .Width(1200)
                         .Height(1200)
-                        .Crop("limit")  // Limit size while maintaining aspect ratio
-                        .Quality("auto")  // Automatic quality optimization
+                        .Crop("limit")
+                        .Quality("auto")
                 };
 
                 // Upload image to Cloudinary
@@ -108,8 +111,8 @@ public class CloudinaryService : ICloudinaryService
                         return null;
                     }
                     
-                    // Wait before the next retry
-                    await Task.Delay(1000 * attemptCount); // Exponential backoff
+                    // Wait before the next retry with exponential backoff
+                    await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attemptCount - 1)));
                     continue;
                 }
 
@@ -133,7 +136,8 @@ public class CloudinaryService : ICloudinaryService
                 return new CloudinaryUploadResult
                 {
                     Url = uploadResult.SecureUrl.ToString(),
-                    PublicId = uploadResult.PublicId,                    Format = uploadResult.Format,
+                    PublicId = uploadResult.PublicId,
+                    Format = uploadResult.Format,
                     Width = uploadResult.Width,
                     Height = uploadResult.Height,
                     FileSize = uploadResult.Bytes,
@@ -152,7 +156,7 @@ public class CloudinaryService : ICloudinaryService
                 }
                 
                 // Wait before the next retry with exponential backoff
-                await Task.Delay(1000 * attemptCount);
+                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attemptCount - 1)));
             }
         }
         

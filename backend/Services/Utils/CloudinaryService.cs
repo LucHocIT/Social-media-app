@@ -2,7 +2,11 @@ using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using System;
 using System.IO;
+using System.Net.Http;
+using System.Threading.Tasks;
+using System.Security.Authentication;
 
 namespace SocialApp.Services.Utils;
 
@@ -30,7 +34,9 @@ public class CloudinaryUploadResult
 public class CloudinaryService : ICloudinaryService
 {
     private readonly Cloudinary _cloudinary;
-    private readonly ILogger<CloudinaryService> _logger;    public CloudinaryService(IConfiguration configuration, ILogger<CloudinaryService> logger)
+    private readonly ILogger<CloudinaryService> _logger;
+
+    public CloudinaryService(IConfiguration configuration, ILogger<CloudinaryService> logger)
     {
         _logger = logger;
         
@@ -55,10 +61,23 @@ public class CloudinaryService : ICloudinaryService
             throw new InvalidOperationException("Cloudinary configuration is missing or incomplete");
         }
 
-        // Set up Cloudinary instance
+        // Configure HttpClient with proper SSL/TLS settings
+        var httpClientHandler = new HttpClientHandler
+        {
+            SslProtocols = System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13,
+            ServerCertificateCustomValidationCallback = (sender, cert, chain, sslPolicyErrors) => true // For development only
+        };
+
+        var httpClient = new HttpClient(httpClientHandler);
+        
+        // Set up Cloudinary instance with custom HttpClient
         var account = new Account(cloudName, apiKey, apiSecret);
-        _cloudinary = new Cloudinary(account) {
-            Api = { Timeout = 60000 } // Increase timeout to 60 seconds
+        _cloudinary = new Cloudinary(account)
+        {
+            Api = { 
+                Timeout = 60000, // 60 seconds timeout
+                HttpClient = httpClient
+            }
         };
     }    public async Task<CloudinaryUploadResult?> UploadImageAsync(Stream fileStream, string fileName)
     {

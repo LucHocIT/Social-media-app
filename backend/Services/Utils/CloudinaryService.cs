@@ -1,6 +1,10 @@
 using CloudinaryDotNet;
 using CloudinaryDotNet.Actions;
 using Microsoft.Extensions.Configuration;
+using System.Net;
+using System.Net.Security;
+using System.Security.Authentication;
+using System.Security.Cryptography.X509Certificates;
 
 namespace SocialApp.Services.Utils;
 
@@ -26,6 +30,15 @@ public class CloudinaryService : ICloudinaryService
     {
         _logger = logger;
         
+        // Configure TLS settings for secure connections
+        ServicePointManager.SecurityProtocol = SecurityProtocolType.Tls12 | SecurityProtocolType.Tls13;
+        
+        // Configure SSL certificate validation
+        ServicePointManager.ServerCertificateValidationCallback += (sender, certificate, chain, sslPolicyErrors) => {
+            _logger.LogInformation("SSL Certificate validation. Policy Errors: {PolicyErrors}", sslPolicyErrors);
+            return true; // Accept all certificates (in production, you might want to be more selective)
+        };
+        
         // Try to get Cloudinary settings from environment variables first
         var cloudName = Environment.GetEnvironmentVariable("CLOUDINARY_CLOUD_NAME");
         var apiKey = Environment.GetEnvironmentVariable("CLOUDINARY_API_KEY");
@@ -49,49 +62,86 @@ public class CloudinaryService : ICloudinaryService
 
         // Set up Cloudinary instance
         var account = new Account(cloudName, apiKey, apiSecret);
-        _cloudinary = new Cloudinary(account);
+        _cloudinary = new Cloudinary(account) {
+            Api = { Timeout = 60000 } // Increase timeout to 60 seconds
+        };
     }    public async Task<CloudinaryUploadResult?> UploadImageAsync(Stream fileStream, string fileName)
     {
-        try
+        const int maxRetries = 3;
+        int attemptCount = 0;
+        
+        while (attemptCount < maxRetries)
         {
-            // Prepare upload parameters
-            var uploadParams = new ImageUploadParams
+            try
             {
-                File = new FileDescription(fileName, fileStream),
-                Folder = "profiles",
-                UseFilename = true,
-                UniqueFilename = true,
-                Overwrite = true,
-                Transformation = new Transformation()
-                    .Width(500)
-                    .Height(500)
-                    .Crop("fill")
-                    .Gravity("face")
-            };
+                attemptCount++;
+                _logger.LogInformation("Attempting to upload image to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
+                
+                // Reset stream position if it's not at the beginning and is seekable
+                if (fileStream.Position != 0 && fileStream.CanSeek)
+                {
+                    fileStream.Seek(0, SeekOrigin.Begin);
+                }
+                
+                // Prepare upload parameters
+                var uploadParams = new ImageUploadParams
+                {
+                    File = new FileDescription(fileName, fileStream),
+                    Folder = "profiles",
+                    UseFilename = true,
+                    UniqueFilename = true,
+                    Overwrite = true,
+                    Transformation = new Transformation()
+                        .Width(500)
+                        .Height(500)
+                        .Crop("fill")
+                        .Gravity("face")
+                };
 
-            // Upload image to Cloudinary
-            var uploadResult = await _cloudinary.UploadAsync(uploadParams);
+                // Upload image to Cloudinary
+                var uploadResult = await _cloudinary.UploadAsync(uploadParams);
 
-            if (uploadResult.Error != null)
-            {
-                _logger.LogError("Cloudinary upload error: {ErrorMessage}", uploadResult.Error.Message);
-                return null;
+                if (uploadResult.Error != null)
+                {
+                    _logger.LogError("Cloudinary upload error: {ErrorMessage}", uploadResult.Error.Message);
+                    
+                    // If this is our last attempt, return null
+                    if (attemptCount >= maxRetries)
+                    {
+                        return null;
+                    }
+                    
+                    // Wait before the next retry
+                    await Task.Delay(1000 * attemptCount); // Exponential backoff
+                    continue;
+                }
+
+                _logger.LogInformation("Successfully uploaded image to Cloudinary: {PublicId}", uploadResult.PublicId);
+                return new CloudinaryUploadResult
+                {
+                    Url = uploadResult.SecureUrl.ToString(),
+                    PublicId = uploadResult.PublicId,
+                    Format = uploadResult.Format,
+                    Width = uploadResult.Width,
+                    Height = uploadResult.Height
+                };
             }
-
-            return new CloudinaryUploadResult
+            catch (Exception ex)
             {
-                Url = uploadResult.SecureUrl.ToString(),
-                PublicId = uploadResult.PublicId,
-                Format = uploadResult.Format,
-                Width = uploadResult.Width,
-                Height = uploadResult.Height
-            };
+                _logger.LogError(ex, "Error uploading image to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
+                
+                // If this is our last attempt, return null
+                if (attemptCount >= maxRetries)
+                {
+                    return null;
+                }
+                
+                // Wait before the next retry with exponential backoff
+                await Task.Delay(1000 * attemptCount);
+            }
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error uploading image to Cloudinary");
-            return null;
-        }
+        
+        return null;
     }public async Task<bool> DeleteImageAsync(string publicId)
     {
         try

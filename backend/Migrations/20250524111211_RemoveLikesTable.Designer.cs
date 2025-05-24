@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SocialApp.Models;
 
@@ -11,9 +12,11 @@ using SocialApp.Models;
 namespace SocialApp.Migrations
 {
     [DbContext(typeof(SocialMediaDbContext))]
-    partial class SocialMediaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250524111211_RemoveLikesTable")]
+    partial class RemoveLikesTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -89,6 +92,41 @@ namespace SocialApp.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("EmailVerificationCodes");
+                });
+
+            modelBuilder.Entity("SocialApp.Models.Like", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("CommentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("PostId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ReactionType")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex(new[] { "CommentId" }, "IX_Likes_CommentId");
+
+                    b.HasIndex(new[] { "PostId" }, "IX_Likes_PostId");
+
+                    b.HasIndex(new[] { "UserId" }, "IX_Likes_UserId");
+
+                    b.ToTable("Likes");
                 });
 
             modelBuilder.Entity("SocialApp.Models.Message", b =>
@@ -221,6 +259,9 @@ namespace SocialApp.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int?>("CommentId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -238,6 +279,8 @@ namespace SocialApp.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex(new[] { "CommentId" }, "IX_Reactions_CommentId");
 
                     b.HasIndex(new[] { "PostId" }, "IX_Reactions_PostId");
 
@@ -362,6 +405,29 @@ namespace SocialApp.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("SocialApp.Models.Like", b =>
+                {
+                    b.HasOne("SocialApp.Models.Comment", "Comment")
+                        .WithMany("Likes")
+                        .HasForeignKey("CommentId");
+
+                    b.HasOne("SocialApp.Models.Post", "Post")
+                        .WithMany("Likes")
+                        .HasForeignKey("PostId");
+
+                    b.HasOne("SocialApp.Models.User", "User")
+                        .WithMany("Likes")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Comment");
+
+                    b.Navigation("Post");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("SocialApp.Models.Message", b =>
                 {
                     b.HasOne("SocialApp.Models.User", "Receiver")
@@ -421,6 +487,10 @@ namespace SocialApp.Migrations
 
             modelBuilder.Entity("SocialApp.Models.Reaction", b =>
                 {
+                    b.HasOne("SocialApp.Models.Comment", "Comment")
+                        .WithMany("Reactions")
+                        .HasForeignKey("CommentId");
+
                     b.HasOne("SocialApp.Models.Post", "Post")
                         .WithMany("Reactions")
                         .HasForeignKey("PostId");
@@ -430,6 +500,8 @@ namespace SocialApp.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Comment");
 
                     b.Navigation("Post");
 
@@ -457,12 +529,18 @@ namespace SocialApp.Migrations
                 {
                     b.Navigation("InverseParentComment");
 
+                    b.Navigation("Likes");
+
                     b.Navigation("Notifications");
+
+                    b.Navigation("Reactions");
                 });
 
             modelBuilder.Entity("SocialApp.Models.Post", b =>
                 {
                     b.Navigation("Comments");
+
+                    b.Navigation("Likes");
 
                     b.Navigation("Notifications");
 
@@ -472,6 +550,8 @@ namespace SocialApp.Migrations
             modelBuilder.Entity("SocialApp.Models.User", b =>
                 {
                     b.Navigation("Comments");
+
+                    b.Navigation("Likes");
 
                     b.Navigation("MessageReceivers");
 

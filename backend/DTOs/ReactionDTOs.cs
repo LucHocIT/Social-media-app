@@ -7,8 +7,7 @@ namespace SocialApp.DTOs
     public class CreateReactionDTO
     {
         [Required]
-        public int? PostId { get; set; }
-        public int? CommentId { get; set; }
+        public int PostId { get; set; }
         
         [Required]
         [StringLength(20)]
@@ -21,8 +20,7 @@ namespace SocialApp.DTOs
         public int UserId { get; set; }
         public string Username { get; set; } = null!;
         public string? ProfilePictureUrl { get; set; }
-        public int? PostId { get; set; }
-        public int? CommentId { get; set; }
+        public int PostId { get; set; }
         public string ReactionType { get; set; } = null!;
         public DateTime CreatedAt { get; set; }
     }

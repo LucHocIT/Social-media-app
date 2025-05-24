@@ -41,11 +41,9 @@ namespace SocialApp.DTOs
         public string? MediaMimeType { get; set; } // MIME type for the media
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
-        public int UserId { get; set; }
-        public string Username { get; set; } = null!;
-        public string? ProfilePictureUrl { get; set; }        public int LikesCount { get; set; }
-        public int CommentsCount { get; set; }        
-        public bool IsLikedByCurrentUser { get; set; }
+        public int UserId { get; set; }        public string Username { get; set; } = null!;
+        public string? ProfilePictureUrl { get; set; }
+        public int CommentsCount { get; set; }
         
         // Reaction information
         public Dictionary<string, int> ReactionCounts { get; set; } = new Dictionary<string, int>();

@@ -98,11 +98,7 @@ public class PostService : IPostService
             {
                 _logger.LogWarning("Post {PostId} not found for user {UserId}", postId, userId);
                 return false;
-            }            // Delete associated likes
-            var likes = await _context.Likes.Where(l => l.PostId == postId).ToListAsync();
-            _context.Likes.RemoveRange(likes);
-            
-            // Delete associated reactions
+            }            // Delete associated reactions
             var reactions = await _context.Reactions.Where(r => r.PostId == postId).ToListAsync();
             _context.Reactions.RemoveRange(reactions);
 
@@ -131,7 +127,6 @@ public class PostService : IPostService
         try
         {            var post = await _context.Posts
                 .Include(p => p.User)
-                .Include(p => p.Likes)
                 .Include(p => p.Comments)
                 .Include(p => p.Reactions)
                 .FirstOrDefaultAsync(p => p.Id == postId);
@@ -156,7 +151,6 @@ public class PostService : IPostService
         try
         {            var query = _context.Posts
                 .Include(p => p.User)
-                .Include(p => p.Likes)
                 .Include(p => p.Comments)
                 .Include(p => p.Reactions)
                 .OrderByDescending(p => p.CreatedAt)
@@ -224,7 +218,6 @@ public class PostService : IPostService
                 PageSize = pageSize
             };            var query = _context.Posts
                 .Include(p => p.User)
-                .Include(p => p.Likes)
                 .Include(p => p.Comments)
                 .Include(p => p.Reactions)
                 .Where(p => p.UserId == userId)
@@ -256,117 +249,7 @@ public class PostService : IPostService
             _logger.LogError(ex, "Error retrieving posts for user {UserId}", userId);
             throw;
         }
-    }
-
-    public async Task<bool> LikePostAsync(int userId, int postId)
-    {
-        try
-        {
-            // Check if the post exists
-            var post = await _context.Posts.FindAsync(postId);
-            if (post == null)
-            {
-                _logger.LogWarning("Post {PostId} not found", postId);
-                return false;
-            }
-
-            // Check if the user has already liked the post
-            var existingLike = await _context.Likes
-                .FirstOrDefaultAsync(l => l.UserId == userId && l.PostId == postId);
-
-            if (existingLike != null)
-            {
-                _logger.LogInformation("User {UserId} has already liked post {PostId}", userId, postId);
-                return true; // Already liked
-            }
-
-            // Create a new like
-            var like = new Like
-            {
-                UserId = userId,
-                PostId = postId,
-                CreatedAt = DateTime.UtcNow
-            };
-
-            _context.Likes.Add(like);
-
-            // Create a notification for the post owner if it's not the same as the user liking
-            if (post.UserId != userId)
-            {
-                var notification = new Notification
-                {
-                    Type = 1, // 1 for like notification
-                    Content = "liked your post",
-                    IsRead = false,
-                    CreatedAt = DateTime.UtcNow,
-                    UserId = post.UserId, // Post owner receives the notification
-                    FromUserId = userId, // User who liked the post
-                    PostId = postId
-                };
-
-                _context.Notifications.Add(notification);
-            }
-
-            await _context.SaveChangesAsync();
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error liking post {PostId} by user {UserId}", postId, userId);
-            throw;
-        }
-    }
-
-    public async Task<bool> UnlikePostAsync(int userId, int postId)
-    {
-        try
-        {
-            var like = await _context.Likes
-                .FirstOrDefaultAsync(l => l.UserId == userId && l.PostId == postId);
-
-            if (like == null)
-            {
-                _logger.LogWarning("Like not found for user {UserId} on post {PostId}", userId, postId);
-                return false;
-            }
-
-            _context.Likes.Remove(like);
-            await _context.SaveChangesAsync();
-            return true;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error unliking post {PostId} by user {UserId}", postId, userId);
-            throw;
-        }
-    }
-
-    public async Task<IEnumerable<PostResponseDTO>> GetLikedPostsByUserAsync(int userId, int pageNumber = 1, int pageSize = 10, int? currentUserId = null)
-    {
-        try
-        {
-            var likedPostIds = await _context.Likes
-                .Where(l => l.UserId == userId)
-                .Select(l => l.PostId)
-                .ToListAsync();            var posts = await _context.Posts
-                .Include(p => p.User)
-                .Include(p => p.Likes)
-                .Include(p => p.Comments)
-                .Include(p => p.Reactions)
-                .Where(p => likedPostIds.Contains(p.Id))
-                .OrderByDescending(p => p.CreatedAt)
-                .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync();
-
-            return posts.Select(p => MapPostToResponseDTO(p, currentUserId));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving liked posts for user {UserId}", userId);
-            throw;
-        }
-    }    public async Task<UploadMediaResult> UploadPostMediaAsync(int userId, IFormFile media, string mediaType = "image")
+    }public async Task<UploadMediaResult> UploadPostMediaAsync(int userId, IFormFile media, string mediaType = "image")
     {
         try
         {
@@ -468,9 +351,8 @@ public class PostService : IPostService
         }
     }    // Helper method to map Post entity to PostResponseDTO
     private PostResponseDTO MapPostToResponseDTO(Models.Post post, int? currentUserId)
-    {
-        bool hasReacted = false;
-        string currentUserReactionType = null;
+    {        bool hasReacted = false;
+        string? currentUserReactionType = null;
         var reactionCounts = new Dictionary<string, int>();
         
         // Get reaction counts by type
@@ -504,11 +386,8 @@ public class PostService : IPostService
             CreatedAt = post.CreatedAt,
             UpdatedAt = post.UpdatedAt,
             UserId = post.UserId,
-            Username = post.User.Username,
-            ProfilePictureUrl = post.User.ProfilePictureUrl,            // We'll keep LikesCount for backward compatibility, but in future this should be refactored
-            LikesCount = post.Reactions?.Count ?? 0,
+            Username = post.User.Username,            ProfilePictureUrl = post.User.ProfilePictureUrl,
             CommentsCount = post.Comments?.Count ?? 0,
-            IsLikedByCurrentUser = hasReacted, // Keeping for backwards compatibility
             HasReactedByCurrentUser = hasReacted,
             CurrentUserReactionType = currentUserReactionType,
             ReactionCounts = reactionCounts

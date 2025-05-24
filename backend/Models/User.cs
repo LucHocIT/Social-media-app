@@ -29,9 +29,7 @@ public partial class User
 
     public DateTime CreatedAt { get; set; }
 
-    public DateTime? LastActive { get; set; }
-
-    public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();    public virtual ICollection<Like> Likes { get; set; } = new List<Like>();
+    public DateTime? LastActive { get; set; }    public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();
     
     public virtual ICollection<Reaction> Reactions { get; set; } = new List<Reaction>();
 

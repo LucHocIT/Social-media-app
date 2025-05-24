@@ -10,8 +10,6 @@ public partial class SocialMediaDbContext : DbContext
         : base(options)
     {
     }    public virtual DbSet<Comment> Comments { get; set; }
-
-    public virtual DbSet<Like> Likes { get; set; }
     
     public virtual DbSet<Reaction> Reactions { get; set; }
 
@@ -28,8 +26,7 @@ public partial class SocialMediaDbContext : DbContext
     public virtual DbSet<EmailVerificationCode> EmailVerificationCodes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {
-        modelBuilder.Entity<Comment>(entity =>
+    {        modelBuilder.Entity<Comment>(entity =>
         {
             entity.HasIndex(e => e.ParentCommentId, "IX_Comments_ParentCommentId");
 
@@ -46,32 +43,14 @@ public partial class SocialMediaDbContext : DbContext
             entity.HasOne(d => d.User).WithMany(p => p.Comments)
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.ClientSetNull);
-        });        modelBuilder.Entity<Like>(entity =>
-        {
-            entity.HasIndex(e => e.CommentId, "IX_Likes_CommentId");
-
-            entity.HasIndex(e => e.PostId, "IX_Likes_PostId");
-
-            entity.HasIndex(e => e.UserId, "IX_Likes_UserId");
-
-            entity.HasOne(d => d.Comment).WithMany(p => p.Likes).HasForeignKey(d => d.CommentId);
-
-            entity.HasOne(d => d.Post).WithMany(p => p.Likes).HasForeignKey(d => d.PostId);
-
-            entity.HasOne(d => d.User).WithMany(p => p.Likes).HasForeignKey(d => d.UserId);
         });
 
         modelBuilder.Entity<Reaction>(entity =>
-        {
-            entity.HasIndex(e => e.CommentId, "IX_Reactions_CommentId");
-
-            entity.HasIndex(e => e.PostId, "IX_Reactions_PostId");
+        {            entity.HasIndex(e => e.PostId, "IX_Reactions_PostId");
 
             entity.HasIndex(e => e.UserId, "IX_Reactions_UserId");
             
             entity.Property(e => e.ReactionType).HasMaxLength(20).HasDefaultValue("like");
-
-            entity.HasOne(d => d.Comment).WithMany(p => p.Reactions).HasForeignKey(d => d.CommentId);
 
             entity.HasOne(d => d.Post).WithMany(p => p.Reactions).HasForeignKey(d => d.PostId);
 
@@ -93,9 +72,7 @@ public partial class SocialMediaDbContext : DbContext
             entity.HasOne(d => d.Sender).WithMany(p => p.MessageSenders)
                 .HasForeignKey(d => d.SenderId)
                 .OnDelete(DeleteBehavior.ClientSetNull);
-        });
-
-        modelBuilder.Entity<Notification>(entity =>
+        });        modelBuilder.Entity<Notification>(entity =>
         {
             entity.HasIndex(e => e.CommentId, "IX_Notifications_CommentId");
 

@@ -19,9 +19,7 @@ public partial class Comment
 
     public int? ParentCommentId { get; set; }
 
-    public virtual ICollection<Comment> InverseParentComment { get; set; } = new List<Comment>();    public virtual ICollection<Like> Likes { get; set; } = new List<Like>();
-    
-    public virtual ICollection<Reaction> Reactions { get; set; } = new List<Reaction>();
+    public virtual ICollection<Comment> InverseParentComment { get; set; } = new List<Comment>();
 
     public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 

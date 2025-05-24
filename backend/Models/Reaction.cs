@@ -12,12 +12,8 @@ public partial class Reaction
     public int UserId { get; set; }
 
     public int? PostId { get; set; }
-
-    public int? CommentId { get; set; }
     
     public string ReactionType { get; set; } = "like"; // Default reaction is like, can be: like, love, haha, wow, sad, angry
-
-    public virtual Comment? Comment { get; set; }
 
     public virtual Post? Post { get; set; }
 

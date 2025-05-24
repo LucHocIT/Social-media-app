@@ -198,53 +198,7 @@ public class PostsController : ControllerBase
             _logger.LogError(ex, "Error deleting post {PostId}", postId);
             return StatusCode(500, new { message = "An error occurred while deleting the post" });
         }
-    }
-
-    [HttpPost("{postId}/like")]
-    [Authorize]
-    public async Task<IActionResult> LikePost(int postId)
-    {
-        try
-        {
-            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            bool result = await _postService.LikePostAsync(currentUserId, postId);
-
-            if (!result)
-            {
-                return BadRequest(new { message = "Failed to like post. Post may not exist." });
-            }
-
-            return Ok(new { message = "Post liked successfully" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error liking post {PostId}", postId);
-            return StatusCode(500, new { message = "An error occurred while liking the post" });
-        }
-    }
-
-    [HttpDelete("{postId}/like")]
-    [Authorize]
-    public async Task<IActionResult> UnlikePost(int postId)
-    {
-        try
-        {
-            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            bool result = await _postService.UnlikePostAsync(currentUserId, postId);
-
-            if (!result)
-            {
-                return BadRequest(new { message = "Failed to unlike post. Post may not exist or wasn't liked." });
-            }
-
-            return Ok(new { message = "Post unliked successfully" });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error unliking post {PostId}", postId);
-            return StatusCode(500, new { message = "An error occurred while unliking the post" });
-        }
-    }    [HttpPost("upload-media")]
+    }[HttpPost("upload-media")]
     [Authorize]
     [Consumes("multipart/form-data")]
     public async Task<IActionResult> UploadMedia([FromForm] MediaUploadDTO uploadDto)
@@ -282,30 +236,6 @@ public class PostsController : ControllerBase
         {
             _logger.LogError(ex, "Error uploading media");
             return StatusCode(500, new { message = "An error occurred while uploading media" });
-        }
-    }
-
-    [HttpGet("liked/{userId}")]
-    public async Task<IActionResult> GetLikedPosts(
-        int userId,
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 10)
-    {
-        try
-        {
-            int? currentUserId = null;
-            if (User.Identity?.IsAuthenticated == true)
-            {
-                currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            }
-
-            var posts = await _postService.GetLikedPostsByUserAsync(userId, pageNumber, pageSize, currentUserId);
-            return Ok(posts);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving liked posts for user {UserId}", userId);
-            return StatusCode(500, new { message = "An error occurred while retrieving liked posts" });
         }
     }
 }

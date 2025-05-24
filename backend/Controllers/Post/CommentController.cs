@@ -24,23 +24,19 @@ namespace SocialApp.Controllers.Post
         {
             var result = await _commentService.GetCommentsByPostIdAsync(postId);
             return Ok(result);
-        }
-
-        [HttpPost]
+        }        [HttpPost]
         public async Task<ActionResult<CommentResponseDTO>> CreateComment(CreateCommentDTO dto)
         {
-            var userId = int.Parse(User.FindFirst("userId")?.Value ?? "0");
+            var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
             if (userId == 0)
                 return Unauthorized();
 
             var result = await _commentService.CreateCommentAsync(dto, userId);
             return Ok(result);
-        }
-
-        [HttpPut("{id}")]
+        }        [HttpPut("{id}")]
         public async Task<ActionResult<CommentResponseDTO>> UpdateComment(int id, UpdateCommentDTO dto)
         {
-            var userId = int.Parse(User.FindFirst("userId")?.Value ?? "0");
+            var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
             if (userId == 0)
                 return Unauthorized();
 
@@ -49,12 +45,10 @@ namespace SocialApp.Controllers.Post
                 return NotFound("Comment not found or you are not authorized to update this comment");
 
             return Ok(result);
-        }
-
-        [HttpDelete("{id}")]
+        }        [HttpDelete("{id}")]
         public async Task<ActionResult> DeleteComment(int id)
         {
-            var userId = int.Parse(User.FindFirst("userId")?.Value ?? "0");
+            var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
             if (userId == 0)
                 return Unauthorized();
 
@@ -63,14 +57,14 @@ namespace SocialApp.Controllers.Post
                 return NotFound("Comment not found or you are not authorized to delete this comment");
 
             return NoContent();
-        }
-
-        [HttpPost("reaction")]
+        }        [HttpPost("reaction")]
         public async Task<ActionResult> AddReaction(CommentReactionDTO dto)
         {
-            var userId = int.Parse(User.FindFirst("userId")?.Value ?? "0");
+            var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
             if (userId == 0)
-                return Unauthorized();            var result = await _commentService.AddOrToggleReactionAsync(dto, userId);
+                return Unauthorized();
+                
+            var result = await _commentService.AddOrToggleReactionAsync(dto, userId);
             return Ok(result);
         }
     }

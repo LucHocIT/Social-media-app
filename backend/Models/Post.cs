@@ -21,9 +21,9 @@ public partial class Post
 
     public int UserId { get; set; }
 
-    public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();
-
-    public virtual ICollection<Like> Likes { get; set; } = new List<Like>();
+    public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();    public virtual ICollection<Like> Likes { get; set; } = new List<Like>();
+    
+    public virtual ICollection<Reaction> Reactions { get; set; } = new List<Reaction>();
 
     public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
 

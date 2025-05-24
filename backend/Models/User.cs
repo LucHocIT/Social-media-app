@@ -31,9 +31,9 @@ public partial class User
 
     public DateTime? LastActive { get; set; }
 
-    public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();
-
-    public virtual ICollection<Like> Likes { get; set; } = new List<Like>();
+    public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();    public virtual ICollection<Like> Likes { get; set; } = new List<Like>();
+    
+    public virtual ICollection<Reaction> Reactions { get; set; } = new List<Reaction>();
 
     public virtual ICollection<Message> MessageReceivers { get; set; } = new List<Message>();
 

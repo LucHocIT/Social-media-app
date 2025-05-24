@@ -9,11 +9,11 @@ public partial class SocialMediaDbContext : DbContext
     public SocialMediaDbContext(DbContextOptions<SocialMediaDbContext> options)
         : base(options)
     {
-    }
-
-    public virtual DbSet<Comment> Comments { get; set; }
+    }    public virtual DbSet<Comment> Comments { get; set; }
 
     public virtual DbSet<Like> Likes { get; set; }
+    
+    public virtual DbSet<Reaction> Reactions { get; set; }
 
     public virtual DbSet<Message> Messages { get; set; }
 
@@ -46,9 +46,7 @@ public partial class SocialMediaDbContext : DbContext
             entity.HasOne(d => d.User).WithMany(p => p.Comments)
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.ClientSetNull);
-        });
-
-        modelBuilder.Entity<Like>(entity =>
+        });        modelBuilder.Entity<Like>(entity =>
         {
             entity.HasIndex(e => e.CommentId, "IX_Likes_CommentId");
 
@@ -61,6 +59,23 @@ public partial class SocialMediaDbContext : DbContext
             entity.HasOne(d => d.Post).WithMany(p => p.Likes).HasForeignKey(d => d.PostId);
 
             entity.HasOne(d => d.User).WithMany(p => p.Likes).HasForeignKey(d => d.UserId);
+        });
+
+        modelBuilder.Entity<Reaction>(entity =>
+        {
+            entity.HasIndex(e => e.CommentId, "IX_Reactions_CommentId");
+
+            entity.HasIndex(e => e.PostId, "IX_Reactions_PostId");
+
+            entity.HasIndex(e => e.UserId, "IX_Reactions_UserId");
+            
+            entity.Property(e => e.ReactionType).HasMaxLength(20).HasDefaultValue("like");
+
+            entity.HasOne(d => d.Comment).WithMany(p => p.Reactions).HasForeignKey(d => d.CommentId);
+
+            entity.HasOne(d => d.Post).WithMany(p => p.Reactions).HasForeignKey(d => d.PostId);
+
+            entity.HasOne(d => d.User).WithMany(p => p.Reactions).HasForeignKey(d => d.UserId);
         });
 
         modelBuilder.Entity<Message>(entity =>

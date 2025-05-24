@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace SocialApp.Models;
 
-public partial class Like
+public partial class Reaction
 {
     public int Id { get; set; }
 
@@ -14,7 +14,7 @@ public partial class Like
     public int? PostId { get; set; }
 
     public int? CommentId { get; set; }
-
+    
     public string ReactionType { get; set; } = "like"; // Default reaction is like, can be: like, love, haha, wow, sad, angry
 
     public virtual Comment? Comment { get; set; }

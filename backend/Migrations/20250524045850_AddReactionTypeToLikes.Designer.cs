@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SocialApp.Models;
 
@@ -11,9 +12,11 @@ using SocialApp.Models;
 namespace SocialApp.Migrations
 {
     [DbContext(typeof(SocialMediaDbContext))]
-    partial class SocialMediaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250524045850_AddReactionTypeToLikes")]
+    partial class AddReactionTypeToLikes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -248,44 +251,6 @@ namespace SocialApp.Migrations
                     b.ToTable("Posts");
                 });
 
-            modelBuilder.Entity("SocialApp.Models.Reaction", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int?>("CommentId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int?>("PostId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ReactionType")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(20)
-                        .HasColumnType("nvarchar(20)")
-                        .HasDefaultValue("like");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex(new[] { "CommentId" }, "IX_Reactions_CommentId");
-
-                    b.HasIndex(new[] { "PostId" }, "IX_Reactions_PostId");
-
-                    b.HasIndex(new[] { "UserId" }, "IX_Reactions_UserId");
-
-                    b.ToTable("Reactions");
-                });
-
             modelBuilder.Entity("SocialApp.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -482,29 +447,6 @@ namespace SocialApp.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("SocialApp.Models.Reaction", b =>
-                {
-                    b.HasOne("SocialApp.Models.Comment", "Comment")
-                        .WithMany("Reactions")
-                        .HasForeignKey("CommentId");
-
-                    b.HasOne("SocialApp.Models.Post", "Post")
-                        .WithMany("Reactions")
-                        .HasForeignKey("PostId");
-
-                    b.HasOne("SocialApp.Models.User", "User")
-                        .WithMany("Reactions")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Comment");
-
-                    b.Navigation("Post");
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("SocialApp.Models.UserFollower", b =>
                 {
                     b.HasOne("SocialApp.Models.User", "Follower")
@@ -529,8 +471,6 @@ namespace SocialApp.Migrations
                     b.Navigation("Likes");
 
                     b.Navigation("Notifications");
-
-                    b.Navigation("Reactions");
                 });
 
             modelBuilder.Entity("SocialApp.Models.Post", b =>
@@ -540,8 +480,6 @@ namespace SocialApp.Migrations
                     b.Navigation("Likes");
 
                     b.Navigation("Notifications");
-
-                    b.Navigation("Reactions");
                 });
 
             modelBuilder.Entity("SocialApp.Models.User", b =>
@@ -559,8 +497,6 @@ namespace SocialApp.Migrations
                     b.Navigation("NotificationUsers");
 
                     b.Navigation("Posts");
-
-                    b.Navigation("Reactions");
 
                     b.Navigation("UserFollowerFollowers");
 

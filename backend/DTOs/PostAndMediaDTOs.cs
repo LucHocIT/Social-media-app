@@ -43,9 +43,14 @@ namespace SocialApp.DTOs
         public DateTime? UpdatedAt { get; set; }
         public int UserId { get; set; }
         public string Username { get; set; } = null!;
-        public string? ProfilePictureUrl { get; set; }
-        public int LikesCount { get; set; }
-        public int CommentsCount { get; set; }        public bool IsLikedByCurrentUser { get; set; }
+        public string? ProfilePictureUrl { get; set; }        public int LikesCount { get; set; }
+        public int CommentsCount { get; set; }        
+        public bool IsLikedByCurrentUser { get; set; }
+        
+        // Reaction information
+        public Dictionary<string, int> ReactionCounts { get; set; } = new Dictionary<string, int>();
+        public bool HasReactedByCurrentUser { get; set; }
+        public string? CurrentUserReactionType { get; set; }
     }
 
     public class PostPagedResponseDTO

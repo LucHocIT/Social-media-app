@@ -13,6 +13,11 @@ public partial class Reaction
 
     public int? PostId { get; set; }
     
+    // New fields for generic reactions
+    public int EntityId { get; set; } // Can be PostId, CommentId, etc.
+    
+    public string EntityType { get; set; } = "Post"; // Can be "Post", "Comment", etc.
+    
     public string ReactionType { get; set; } = "like"; // Default reaction is like, can be: like, love, haha, wow, sad, angry
 
     public virtual Post? Post { get; set; }

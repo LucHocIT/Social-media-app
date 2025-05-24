@@ -280,21 +280,6 @@ public class ProfileController : ControllerBase
         });
     }
 
-    [HttpDelete("picture")]
-    [Authorize]
-    public async Task<IActionResult> RemoveProfilePicture()
-    {
-        int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-
-        bool result = await _profileService.RemoveProfilePictureAsync(currentUserId);
-        if (!result)
-        {
-            return BadRequest(new { message = "Failed to remove profile picture" });
-        }
-
-        return Ok(new { message = "Profile picture removed successfully" });
-    }
-
     [HttpGet("search")]
     public async Task<ActionResult<IEnumerable<ProfileDTO>>> SearchProfiles([FromQuery] ProfileSearchDTO searchDto)
     {

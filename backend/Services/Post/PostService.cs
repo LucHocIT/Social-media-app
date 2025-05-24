@@ -98,11 +98,13 @@ public class PostService : IPostService
             {
                 _logger.LogWarning("Post {PostId} not found for user {UserId}", postId, userId);
                 return false;
-            }
-
-            // Delete associated likes
+            }            // Delete associated likes
             var likes = await _context.Likes.Where(l => l.PostId == postId).ToListAsync();
             _context.Likes.RemoveRange(likes);
+            
+            // Delete associated reactions
+            var reactions = await _context.Reactions.Where(r => r.PostId == postId).ToListAsync();
+            _context.Reactions.RemoveRange(reactions);
 
             // Delete associated comments
             var comments = await _context.Comments.Where(c => c.PostId == postId).ToListAsync();
@@ -127,11 +129,11 @@ public class PostService : IPostService
     public async Task<PostResponseDTO?> GetPostByIdAsync(int postId, int? currentUserId = null)
     {
         try
-        {
-            var post = await _context.Posts
+        {            var post = await _context.Posts
                 .Include(p => p.User)
                 .Include(p => p.Likes)
                 .Include(p => p.Comments)
+                .Include(p => p.Reactions)
                 .FirstOrDefaultAsync(p => p.Id == postId);
 
             if (post == null)
@@ -152,11 +154,11 @@ public class PostService : IPostService
     public async Task<PostPagedResponseDTO> GetPostsAsync(PostFilterDTO filter, int? currentUserId = null)
     {
         try
-        {
-            var query = _context.Posts
+        {            var query = _context.Posts
                 .Include(p => p.User)
                 .Include(p => p.Likes)
                 .Include(p => p.Comments)
+                .Include(p => p.Reactions)
                 .OrderByDescending(p => p.CreatedAt)
                 .AsQueryable();
 
@@ -220,12 +222,11 @@ public class PostService : IPostService
             {
                 PageNumber = pageNumber,
                 PageSize = pageSize
-            };
-
-            var query = _context.Posts
+            };            var query = _context.Posts
                 .Include(p => p.User)
                 .Include(p => p.Likes)
                 .Include(p => p.Comments)
+                .Include(p => p.Reactions)
                 .Where(p => p.UserId == userId)
                 .OrderByDescending(p => p.CreatedAt);
 
@@ -347,12 +348,11 @@ public class PostService : IPostService
             var likedPostIds = await _context.Likes
                 .Where(l => l.UserId == userId)
                 .Select(l => l.PostId)
-                .ToListAsync();
-
-            var posts = await _context.Posts
+                .ToListAsync();            var posts = await _context.Posts
                 .Include(p => p.User)
                 .Include(p => p.Likes)
                 .Include(p => p.Comments)
+                .Include(p => p.Reactions)
                 .Where(p => likedPostIds.Contains(p.Id))
                 .OrderByDescending(p => p.CreatedAt)
                 .Skip((pageNumber - 1) * pageSize)
@@ -466,32 +466,52 @@ public class PostService : IPostService
                 Message = $"An error occurred: {ex.Message}"
             };
         }
-    }
-
-    // Helper method to map Post entity to PostResponseDTO
+    }    // Helper method to map Post entity to PostResponseDTO
     private PostResponseDTO MapPostToResponseDTO(Models.Post post, int? currentUserId)
     {
-        bool isLiked = false;
-
-        if (currentUserId.HasValue)
+        bool hasReacted = false;
+        string currentUserReactionType = null;
+        var reactionCounts = new Dictionary<string, int>();
+        
+        // Get reaction counts by type
+        if (post.Reactions != null && post.Reactions.Any())
         {
-            isLiked = post.Likes.Any(l => l.UserId == currentUserId.Value);
-        }        return new PostResponseDTO
+            reactionCounts = post.Reactions
+                .GroupBy(r => r.ReactionType)
+                .ToDictionary(g => g.Key, g => g.Count());
+                
+            // Check if current user has reacted
+            if (currentUserId.HasValue)
+            {
+                var userReaction = post.Reactions.FirstOrDefault(r => r.UserId == currentUserId.Value);
+                if (userReaction != null)
+                {
+                    hasReacted = true;
+                    currentUserReactionType = userReaction.ReactionType;
+                }
+            }
+        }
+
+        return new PostResponseDTO
         {
             Id = post.Id,
             Content = post.Content,
             MediaUrl = post.MediaUrl,
-            MediaType = post.MediaType,            MediaMimeType = (post.MediaType != null && post.MediaUrl != null) 
+            MediaType = post.MediaType,
+            MediaMimeType = (post.MediaType != null && post.MediaUrl != null) 
                 ? GetMimeTypeForMediaType(post.MediaType, post.MediaUrl)
                 : null,
             CreatedAt = post.CreatedAt,
             UpdatedAt = post.UpdatedAt,
             UserId = post.UserId,
             Username = post.User.Username,
-            ProfilePictureUrl = post.User.ProfilePictureUrl,
-            LikesCount = post.Likes.Count,
-            CommentsCount = post.Comments.Count,
-            IsLikedByCurrentUser = isLiked
+            ProfilePictureUrl = post.User.ProfilePictureUrl,            // We'll keep LikesCount for backward compatibility, but in future this should be refactored
+            LikesCount = post.Reactions?.Count ?? 0,
+            CommentsCount = post.Comments?.Count ?? 0,
+            IsLikedByCurrentUser = hasReacted, // Keeping for backwards compatibility
+            HasReactedByCurrentUser = hasReacted,
+            CurrentUserReactionType = currentUserReactionType,
+            ReactionCounts = reactionCounts
         };
     }
 

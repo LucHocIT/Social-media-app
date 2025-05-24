@@ -12,6 +12,7 @@ using SocialApp.Services.Email;
 using SocialApp.Services.User;
 using SocialApp.Services.Utils;
 using SocialApp.Services.Post;
+using SocialApp.Services.Comment;
 using Microsoft.OpenApi.Models;
 
 // Load .env file if it exists (this should be before creating the builder)
@@ -89,6 +90,7 @@ builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IPostService, PostService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
+builder.Services.AddScoped<ICommentService, CommentService>();
 
 // HttpClient for email verification
 builder.Services.AddHttpClient("EmailVerificationClient", client =>
@@ -164,8 +166,18 @@ void SeedDatabase(SocialMediaDbContext context, IConfiguration configuration)
         // Ensure database exists
         context.Database.EnsureCreated();
 
-        // Apply any pending migrations
-        context.Database.Migrate();
+        // Check if there are pending migrations
+        var pendingMigrations = context.Database.GetPendingMigrations().ToList();
+        if (pendingMigrations.Any())
+        {
+            var logger = app.Services.GetRequiredService<ILogger<Program>>();
+            logger.LogInformation("Applying {0} pending migrations: {1}", 
+                pendingMigrations.Count, 
+                string.Join(", ", pendingMigrations));
+
+            // Apply pending migrations
+            context.Database.Migrate();
+        }
     }
     catch (Exception ex)
     {

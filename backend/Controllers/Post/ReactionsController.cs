@@ -48,12 +48,19 @@ namespace SocialApp.Controllers.Post
 
                 // Check if the user has already reacted to this post
                 var existingReaction = await _context.Reactions
-                    .FirstOrDefaultAsync(r => r.UserId == currentUserId && r.PostId == reactionDto.PostId);
-
-                if (existingReaction != null)
+                    .FirstOrDefaultAsync(r => r.UserId == currentUserId && r.PostId == reactionDto.PostId);                if (existingReaction != null)
                 {
+                    // If reaction type is the same, user is toggling it off
+                    if (existingReaction.ReactionType == reactionDto.ReactionType)
+                    {
+                        // User is toggling off (clicking same reaction)
+                        _context.Reactions.Remove(existingReaction);
+                        await _context.SaveChangesAsync();
+                        
+                        return NoContent();
+                    }
                     // Update the existing reaction if it's different
-                    if (existingReaction.ReactionType != reactionDto.ReactionType)
+                    else
                     {
                         existingReaction.ReactionType = reactionDto.ReactionType;
                         await _context.SaveChangesAsync();

@@ -14,10 +14,10 @@ public class ProfileDTO
     public string Role { get; set; } = "User";
     public DateTime CreatedAt { get; set; }
     public DateTime? LastActive { get; set; }
-    public int PostCount { get; set; }
-    public int FollowersCount { get; set; }
+    public int PostCount { get; set; }    public int FollowersCount { get; set; }
     public int FollowingCount { get; set; }
     public bool IsFollowedByCurrentUser { get; set; }
+    public bool IsFollowing { get; set; } // For backwards compatibility
 }
 
 public class UpdateProfileDTO

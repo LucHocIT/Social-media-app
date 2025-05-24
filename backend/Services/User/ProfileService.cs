@@ -316,6 +316,20 @@ public partial class ProfileService : IProfileService
             return false;
         }
     }
+    
+    public async Task<bool> IsFollowingAsync(int followerId, int followingId)
+    {
+        try
+        {
+            return await _context.UserFollowers
+                .AnyAsync(f => f.FollowerId == followerId && f.FollowingId == followingId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking if user {FollowerId} is following user {FollowingId}", followerId, followingId);
+            return false;
+        }
+    }
 
     private async Task<ProfileDTO> CreateProfileDTOAsync(Models.User user)
     {

@@ -19,9 +19,7 @@ public class ProfileController : ControllerBase
     {
         _profileService = profileService;
         _logger = logger;
-    }
-
-    [HttpGet("{userId}")]
+    }    [HttpGet("{userId}")]
     public async Task<ActionResult<ProfileDTO>> GetUserProfile(int userId)
     {
         try
@@ -30,6 +28,14 @@ public class ProfileController : ControllerBase
             if (profile == null)
             {
                 return NotFound(new { message = "User not found" });
+            }            // Check if the current user is following this profile
+            if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                var isFollowing = await _profileService.IsFollowingAsync(currentUserId, userId);
+                profile.IsFollowedByCurrentUser = isFollowing;
+                // For compatibility, also set the isFollowing property
+                profile.IsFollowing = isFollowing;
             }
 
             return Ok(profile);
@@ -39,9 +45,7 @@ public class ProfileController : ControllerBase
             _logger.LogError(ex, "Error retrieving profile for user {UserId}", userId);
             return StatusCode(500, new { message = "An error occurred while retrieving the user profile" });
         }
-    }
-
-    [HttpGet("username/{username}")]
+    }    [HttpGet("username/{username}")]
     public async Task<ActionResult<ProfileDTO>> GetUserProfileByUsername(string username)
     {
         try
@@ -50,6 +54,14 @@ public class ProfileController : ControllerBase
             if (profile == null)
             {
                 return NotFound(new { message = "User not found" });
+            }            // Check if the current user is following this profile
+            if (User.Identity != null && User.Identity.IsAuthenticated)
+            {
+                int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+                var isFollowing = await _profileService.IsFollowingAsync(currentUserId, profile.Id);
+                profile.IsFollowedByCurrentUser = isFollowing;
+                // For compatibility, also set the isFollowing property
+                profile.IsFollowing = isFollowing;
             }
 
             return Ok(profile);
@@ -59,9 +71,7 @@ public class ProfileController : ControllerBase
             _logger.LogError(ex, "Error retrieving profile for username {Username}", username);
             return StatusCode(500, new { message = "An error occurred while retrieving the user profile" });
         }
-    }
-
-    [HttpGet("me")]
+    }    [HttpGet("me")]
     [Authorize]
     public async Task<ActionResult<ProfileDTO>> GetMyProfile()
     {
@@ -75,6 +85,10 @@ public class ProfileController : ControllerBase
                 return NotFound(new { message = "Profile not found" });
             }
 
+            // No need to check follow status on own profile
+            profile.IsFollowedByCurrentUser = false;
+            profile.IsFollowing = false;
+
             return Ok(profile);
         }
         catch (Exception ex)
@@ -82,7 +96,7 @@ public class ProfileController : ControllerBase
             _logger.LogError(ex, "Error retrieving current user profile");
             return StatusCode(500, new { message = "An error occurred while retrieving your profile" });
         }
-    }    [HttpPut("update")]
+    }[HttpPut("update")]
     [HttpPut("")]  // Adding a route alias to support direct PUT to /api/profile
     [Authorize]
     public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDTO profileDto)
@@ -147,22 +161,23 @@ public class ProfileController : ControllerBase
 
         try
         {
-            bool result = await _profileService.FollowUserAsync(currentUserId, userId);
-            if (!result)
+            bool result = await _profileService.FollowUserAsync(currentUserId, userId);            if (!result)
             {
                 return BadRequest(new { message = "Failed to follow user. User may not exist or you may already be following them." });
             }
 
-            return Ok(new { message = "Successfully followed user" });
+            return Ok(new { 
+                message = "Successfully followed user",
+                isFollowing = true,
+                isFollowedByCurrentUser = true
+            });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error following user {TargetUserId} by user {CurrentUserId}", userId, currentUserId);
             return StatusCode(500, new { message = "An error occurred while trying to follow user" });
         }
-    }
-
-    [HttpDelete("unfollow/{userId}")]
+    }    [HttpDelete("unfollow/{userId}")]
     [Authorize]
     public async Task<IActionResult> UnfollowUser(int userId)
     {
@@ -180,7 +195,11 @@ public class ProfileController : ControllerBase
                 return BadRequest(new { message = "Failed to unfollow user. User may not exist or you may not be following them." });
             }
 
-            return Ok(new { message = "Successfully unfollowed user" });
+            return Ok(new { 
+                message = "Successfully unfollowed user",
+                isFollowing = false,
+                isFollowedByCurrentUser = false
+            });
         }
         catch (Exception ex)
         {

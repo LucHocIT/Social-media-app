@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SocialApp.DTOs;
 using SocialApp.Services.Comment;
+using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -11,11 +12,11 @@ namespace SocialApp.Controllers.Post
     [Route("api/[controller]")]
     public class CommentReportController : ControllerBase
     {
-        private readonly ICommentService _commentService;
+        private readonly ICommentReportService _commentReportService;
 
-        public CommentReportController(ICommentService commentService)
+        public CommentReportController(ICommentReportService commentReportService)
         {
-            _commentService = commentService;
+            _commentReportService = commentReportService;
         }
 
         [HttpPost]
@@ -23,7 +24,7 @@ namespace SocialApp.Controllers.Post
         public async Task<ActionResult<CommentReportResponseDTO>> ReportComment(CreateCommentReportDTO reportDto)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            var result = await _commentService.CreateCommentReportAsync(reportDto, userId);
+            var result = await _commentReportService.CreateCommentReportAsync(reportDto, userId);
             
             if (result == null)
             {
@@ -38,7 +39,7 @@ namespace SocialApp.Controllers.Post
         public async Task<ActionResult<CommentReportResponseDTO>> UpdateReportStatus(int reportId, UpdateCommentReportStatusDTO statusDto)
         {
             var userId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier));
-            var result = await _commentService.UpdateCommentReportStatusAsync(reportId, statusDto, userId);
+            var result = await _commentReportService.UpdateCommentReportStatusAsync(reportId, statusDto, userId);
             
             if (result == null)
             {
@@ -52,7 +53,7 @@ namespace SocialApp.Controllers.Post
         [Authorize(Roles = "Admin,Moderator")]
         public async Task<ActionResult<List<CommentReportResponseDTO>>> GetReportsByStatus([FromQuery] string status = "Pending")
         {
-            var result = await _commentService.GetCommentReportsByStatusAsync(status);
+            var result = await _commentReportService.GetCommentReportsByStatusAsync(status);
             return Ok(result);
         }
         
@@ -60,7 +61,7 @@ namespace SocialApp.Controllers.Post
         [Authorize(Roles = "Admin,Moderator")]
         public async Task<ActionResult<CommentReportResponseDTO>> GetReportById(int reportId)
         {
-            var result = await _commentService.GetCommentReportByIdAsync(reportId);
+            var result = await _commentReportService.GetCommentReportByIdAsync(reportId);
             
             if (result == null)
             {

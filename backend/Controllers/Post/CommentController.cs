@@ -11,11 +11,10 @@ namespace SocialApp.Controllers.Post
     [ApiController]
     [Route("api/comments")]
     public class CommentController : ControllerBase
-    {
-        private readonly ICommentService _commentService;
+    {        private readonly ICommentService _commentService;
         private readonly ICommentReportService _commentReportService;
 
-        public UnifiedCommentController(
+        public CommentController(
             ICommentService commentService,
             ICommentReportService commentReportService)
         {

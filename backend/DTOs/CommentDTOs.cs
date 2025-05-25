@@ -50,6 +50,37 @@ namespace SocialApp.DTOs
         
         [Required]
         [StringLength(20)]
-        public string ReactionType { get; set; } = "like";
+        public string ReactionType { get; set; } = null!;
+    }
+    
+    public class CreateCommentReportDTO
+    {
+        [Required]
+        public int CommentId { get; set; }
+        
+        [Required]
+        [StringLength(300, MinimumLength = 5)]
+        public string Reason { get; set; } = null!;
+    }
+    
+    public class CommentReportResponseDTO
+    {
+        public int Id { get; set; }
+        public int CommentId { get; set; }
+        public string CommentContent { get; set; } = null!;
+        public int ReporterId { get; set; }
+        public string ReporterUsername { get; set; } = null!;
+        public string Reason { get; set; } = null!;
+        public string Status { get; set; } = null!;
+        public DateTime CreatedAt { get; set; }
+        public DateTime? ResolvedAt { get; set; }
+    }
+    
+    public class UpdateCommentReportStatusDTO
+    {
+        [Required]
+        [StringLength(20)]
+        [RegularExpression("^(Pending|Resolved|Rejected)$", ErrorMessage = "Status must be either 'Pending', 'Resolved', or 'Rejected'")]
+        public string Status { get; set; } = null!;
     }
 }

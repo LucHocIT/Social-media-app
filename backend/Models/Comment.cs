@@ -22,6 +22,8 @@ public partial class Comment
     public virtual ICollection<Comment> InverseParentComment { get; set; } = new List<Comment>();
 
     public virtual ICollection<Notification> Notifications { get; set; } = new List<Notification>();
+    
+    public virtual ICollection<CommentReport> CommentReports { get; set; } = new List<CommentReport>();
 
     public virtual Comment? ParentComment { get; set; }
 

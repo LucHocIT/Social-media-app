@@ -11,6 +11,8 @@ public partial class SocialMediaDbContext : DbContext
     {
     }    public virtual DbSet<Comment> Comments { get; set; }
     
+    public virtual DbSet<CommentReport> CommentReports { get; set; }
+    
     public virtual DbSet<Reaction> Reactions { get; set; }
 
     public virtual DbSet<Message> Messages { get; set; }
@@ -126,6 +128,24 @@ public partial class SocialMediaDbContext : DbContext
 
             entity.HasOne(d => d.Following).WithMany(p => p.UserFollowerFollowings)
                 .HasForeignKey(d => d.FollowingId)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+        });
+
+        modelBuilder.Entity<CommentReport>(entity =>
+        {
+            entity.HasIndex(e => e.CommentId, "IX_CommentReports_CommentId");
+            
+            entity.HasIndex(e => e.ReporterId, "IX_CommentReports_ReporterId");
+
+            entity.Property(e => e.Reason).HasMaxLength(300);
+            entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("Pending");
+
+            entity.HasOne(d => d.Comment).WithMany(p => p.CommentReports)
+                .HasForeignKey(d => d.CommentId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.Reporter).WithMany(p => p.CommentReports)
+                .HasForeignKey(d => d.ReporterId)
                 .OnDelete(DeleteBehavior.ClientSetNull);
         });
 

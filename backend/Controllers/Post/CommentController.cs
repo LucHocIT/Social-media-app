@@ -52,8 +52,8 @@ namespace SocialApp.Controllers.Post
             if (userId == 0)
                 return Unauthorized();
 
-            var success = await _commentService.DeleteCommentAsync(id, userId);
-            if (!success)
+            var result = await _commentService.DeleteCommentAsync(id, userId);
+            if (!result)
                 return NotFound("Comment not found or you are not authorized to delete this comment");
 
             return NoContent();
@@ -65,6 +65,13 @@ namespace SocialApp.Controllers.Post
                 return Unauthorized();
                 
             var result = await _commentService.AddOrToggleReactionAsync(dto, userId);
+            return Ok(result);
+        }        [HttpGet("replies/{commentId}")]
+        public async Task<ActionResult<IEnumerable<CommentResponseDTO>>> GetRepliesByCommentId(int commentId)
+        {
+            var userId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+            
+            var result = await _commentService.GetRepliesByCommentIdAsync(commentId, userId);
             return Ok(result);
         }
     }

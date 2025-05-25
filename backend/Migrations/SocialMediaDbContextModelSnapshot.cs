@@ -61,6 +61,47 @@ namespace SocialApp.Migrations
                     b.ToTable("Comments");
                 });
 
+            modelBuilder.Entity("SocialApp.Models.CommentReport", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CommentId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int>("ReporterId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("Pending");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex(new[] { "CommentId" }, "IX_CommentReports_CommentId");
+
+                    b.HasIndex(new[] { "ReporterId" }, "IX_CommentReports_ReporterId");
+
+                    b.ToTable("CommentReports");
+                });
+
             modelBuilder.Entity("SocialApp.Models.EmailVerificationCode", b =>
                 {
                     b.Property<int>("Id")
@@ -369,6 +410,24 @@ namespace SocialApp.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("SocialApp.Models.CommentReport", b =>
+                {
+                    b.HasOne("SocialApp.Models.Comment", "Comment")
+                        .WithMany("CommentReports")
+                        .HasForeignKey("CommentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SocialApp.Models.User", "Reporter")
+                        .WithMany("CommentReports")
+                        .HasForeignKey("ReporterId")
+                        .IsRequired();
+
+                    b.Navigation("Comment");
+
+                    b.Navigation("Reporter");
+                });
+
             modelBuilder.Entity("SocialApp.Models.Message", b =>
                 {
                     b.HasOne("SocialApp.Models.User", "Receiver")
@@ -462,6 +521,8 @@ namespace SocialApp.Migrations
 
             modelBuilder.Entity("SocialApp.Models.Comment", b =>
                 {
+                    b.Navigation("CommentReports");
+
                     b.Navigation("InverseParentComment");
 
                     b.Navigation("Notifications");
@@ -478,6 +539,8 @@ namespace SocialApp.Migrations
 
             modelBuilder.Entity("SocialApp.Models.User", b =>
                 {
+                    b.Navigation("CommentReports");
+
                     b.Navigation("Comments");
 
                     b.Navigation("MessageReceivers");

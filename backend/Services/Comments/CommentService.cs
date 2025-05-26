@@ -397,9 +397,7 @@ namespace SocialApp.Services.Comment
                 HasReactedByCurrentUser = currentUserReaction != null,
                 CurrentUserReactionType = currentUserReaction
             };
-        }
-
-        public async Task<List<CommentResponseDTO>> GetRepliesByCommentIdAsync(int commentId, int? currentUserId = null)
+        }        public async Task<List<CommentResponseDTO>> GetRepliesByCommentIdAsync(int commentId, int? currentUserId = null)
         {
             try
             {
@@ -441,7 +439,10 @@ namespace SocialApp.Services.Comment
                             currentUserReactionType = userReaction.ReactionType;
                         }
                     }
-                    
+
+                    // Recursively load nested replies
+                    var nestedReplies = await GetRepliesByCommentIdAsync(reply.Id, currentUserId);
+                      
                     var replyDto = new CommentResponseDTO
                     {
                         Id = reply.Id,
@@ -454,10 +455,12 @@ namespace SocialApp.Services.Comment
                         IsVerified = reply.User.Role == "Admin" || reply.User.Role == "Moderator",
                         PostId = reply.PostId,
                         ParentCommentId = reply.ParentCommentId,
+                        RepliesCount = replyReplies,
                         ReactionsCount = reactionCounts.Values.Sum(),
                         ReactionCounts = reactionCounts,
                         HasReactedByCurrentUser = hasReacted,
-                        CurrentUserReactionType = currentUserReactionType
+                        CurrentUserReactionType = currentUserReactionType,
+                        Replies = nestedReplies
                     };
                     
                     replyDtos.Add(replyDto);

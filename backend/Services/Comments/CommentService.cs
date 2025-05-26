@@ -196,47 +196,48 @@ namespace SocialApp.Services.Comment
                 _logger.LogError(ex, "Error deleting comment {CommentId}", commentId);
                 throw;
             }
-        }
-
-        public async Task<List<CommentResponseDTO>> GetCommentsByPostIdAsync(int postId)
+        }        public async Task<List<CommentResponseDTO>> GetCommentsByPostIdAsync(int postId)
         {
             try
-            {                // Get all comments for the post
+            {                // Get only top-level comments (no parent) for the post
                 var comments = await _context.Comments
-                    .Where(c => c.PostId == postId)
+                    .Where(c => c.PostId == postId && c.ParentCommentId == null)
                     .Include(c => c.User)
                     .OrderBy(c => c.CreatedAt)
                     .ToListAsync();
 
-                var commentDtos = new List<CommentResponseDTO>();
-
-                foreach (var comment in comments)
+                var commentDtos = new List<CommentResponseDTO>();                foreach (var comment in comments)
                 {
                     // Get reactions for this comment
                     var reactions = await _context.Reactions
                         .Where(r => r.EntityId == comment.Id && r.EntityType == "Comment")
                         .Include(r => r.User)
-                        .ToListAsync();                var reactionCounts = reactions
+                        .ToListAsync();
+
+                    // Get reply count for this comment
+                    var replyCount = await _context.Comments
+                        .CountAsync(c => c.ParentCommentId == comment.Id);
+
+                var reactionCounts = reactions
                     .GroupBy(r => r.ReactionType)
-                    .ToDictionary(g => g.Key, g => g.Count());
-                    
-                var commentDto = new CommentResponseDTO
+                    .ToDictionary(g => g.Key, g => g.Count());                var commentDto = new CommentResponseDTO
                     {
                         Id = comment.Id,
                         PostId = comment.PostId,
                         ParentCommentId = comment.ParentCommentId,
                         UserId = comment.UserId,
-                        Username = comment.User?.Username,
+                        Username = comment.User?.Username ?? string.Empty,
                         ProfilePictureUrl = comment.User?.ProfilePictureUrl,
                         Content = comment.Content,
                         CreatedAt = comment.CreatedAt,
-                        UpdatedAt = comment.UpdatedAt,                        ReactionsCount = reactions.Count,
+                        UpdatedAt = comment.UpdatedAt,
+                        ReactionsCount = reactions.Count,
                         ReactionCounts = reactionCounts,
                         HasReactedByCurrentUser = false,
-                        CurrentUserReactionType = null
-                    };
-
-                    commentDtos.Add(commentDto);
+                        CurrentUserReactionType = null,
+                        RepliesCount = replyCount,
+                        Replies = new List<CommentResponseDTO>() // Keep empty, will be loaded on demand
+                    };                    commentDtos.Add(commentDto);
                 }
 
                 return commentDtos;

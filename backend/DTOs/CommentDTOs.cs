@@ -32,10 +32,10 @@ namespace SocialApp.DTOs
         public int UserId { get; set; }
         public string Username { get; set; } = null!;
         public string? ProfilePictureUrl { get; set; }
-        public bool IsVerified { get; set; }
-        public int PostId { get; set; }
+        public bool IsVerified { get; set; }        public int PostId { get; set; }
         public int? ParentCommentId { get; set; }
         public List<CommentResponseDTO> Replies { get; set; } = new List<CommentResponseDTO>();
+        public int RepliesCount { get; set; }
         
         public int ReactionsCount { get; set; }
         public Dictionary<string, int> ReactionCounts { get; set; } = new Dictionary<string, int>();

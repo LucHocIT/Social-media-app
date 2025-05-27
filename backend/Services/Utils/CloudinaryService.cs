@@ -286,19 +286,19 @@ public class CloudinaryService : ICloudinaryService
                 _logger.LogInformation("Attempting to upload video to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
                 
                 // Reset memory stream position for each attempt
-                memoryStream.Position = 0;
-                
-                // Prepare upload parameters
+                memoryStream.Position = 0;                // Prepare upload parameters
                 var uploadParams = new VideoUploadParams
                 {
                     File = new FileDescription(fileName, memoryStream),
                     Folder = "videos",
                     UseFilename = true,
                     UniqueFilename = true,
-                    Overwrite = true,                    // Optional transformations for videos
+                    Overwrite = true,
+                    // Generate thumbnail and optimize video
                     EagerTransforms = new List<Transformation>()
                     {
-                        new Transformation().Quality("auto").FetchFormat("mp4")
+                        new Transformation().Quality("auto"),
+                        new Transformation().Width(300).Height(200).Crop("fill") // Thumbnail
                     },
                     EagerAsync = true
                 };
@@ -321,17 +321,33 @@ public class CloudinaryService : ICloudinaryService
                     continue;
                 }
 
-                _logger.LogInformation("Successfully uploaded video to Cloudinary: {PublicId}", uploadResult.PublicId);
+                _logger.LogInformation("Successfully uploaded video to Cloudinary: {PublicId}", uploadResult.PublicId);                // Determine video MIME type based on format
+                string mediaType = "video/mp4"; // Default
+                if (!string.IsNullOrEmpty(uploadResult.Format))
+                {
+                    switch (uploadResult.Format.ToLowerInvariant())
+                    {
+                        case "mp4": mediaType = "video/mp4"; break;
+                        case "avi": mediaType = "video/avi"; break;
+                        case "mov": mediaType = "video/quicktime"; break;
+                        case "wmv": mediaType = "video/x-ms-wmv"; break;
+                        case "flv": mediaType = "video/x-flv"; break;
+                        case "webm": mediaType = "video/webm"; break;
+                        case "mkv": mediaType = "video/x-matroska"; break;
+                    }
+                }
+
                 return new CloudinaryUploadResult
                 {
                     Url = uploadResult.SecureUrl.ToString(),
                     PublicId = uploadResult.PublicId,
-                    Format = uploadResult.Format,                    Width = uploadResult.Width,
+                    Format = uploadResult.Format,
+                    Width = uploadResult.Width,
                     Height = uploadResult.Height,
                     Duration = (long)uploadResult.Duration,
                     FileSize = uploadResult.Bytes,
                     ResourceType = "video",
-                    MediaType = uploadResult.Format
+                    MediaType = mediaType
                 };
             }
             catch (Exception ex)

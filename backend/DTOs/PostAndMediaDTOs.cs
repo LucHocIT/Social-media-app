@@ -7,16 +7,33 @@ namespace SocialApp.DTOs
 {
     #region Post DTOs
     
+    public class PostMediaDTO
+    {
+        public string MediaUrl { get; set; } = null!;
+        public string MediaType { get; set; } = null!; // "image", "video", "file"
+        public string? MediaPublicId { get; set; }
+        public string? MediaMimeType { get; set; }
+        public string? MediaFilename { get; set; }
+        public long? MediaFileSize { get; set; }
+        public int? Width { get; set; }
+        public int? Height { get; set; }
+        public long? Duration { get; set; }
+        public int OrderIndex { get; set; } = 0;
+    }
+    
     public class CreatePostDTO
     {
         [Required]
         [StringLength(500, MinimumLength = 1)]
         public string Content { get; set; } = null!;
 
+        // Legacy single media support (for backward compatibility)
         public string? MediaUrl { get; set; }
-          public string? MediaType { get; set; } // "image", "video", "file"
-        
+        public string? MediaType { get; set; } // "image", "video", "file"
         public string? MediaPublicId { get; set; }
+
+        // New multiple media support
+        public List<PostMediaDTO>? MediaFiles { get; set; } = new List<PostMediaDTO>();
 
         public string? Location { get; set; }
     }
@@ -27,9 +44,13 @@ namespace SocialApp.DTOs
         [StringLength(500, MinimumLength = 1)]
         public string Content { get; set; } = null!;
 
+        // Legacy single media support (for backward compatibility)
         public string? MediaUrl { get; set; }
-          public string? MediaType { get; set; } // "image", "video", "file"
+        public string? MediaType { get; set; } // "image", "video", "file"
         public string? MediaPublicId { get; set; }
+
+        // New multiple media support
+        public List<PostMediaDTO>? MediaFiles { get; set; } = new List<PostMediaDTO>();
 
         public string? Location { get; set; }
     }
@@ -38,9 +59,15 @@ namespace SocialApp.DTOs
     {
         public int Id { get; set; }
         public string Content { get; set; } = null!;
+        
+        // Legacy single media support (for backward compatibility)
         public string? MediaUrl { get; set; }
         public string? MediaType { get; set; } // "image", "video", "file"
         public string? MediaMimeType { get; set; } // MIME type for the media
+        
+        // New multiple media support
+        public List<PostMediaDTO>? MediaFiles { get; set; } = new List<PostMediaDTO>();
+        
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public int UserId { get; set; }
@@ -73,19 +100,16 @@ namespace SocialApp.DTOs
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 10;
         public string? Username { get; set; }
-        public bool? OnlyFollowing { get; set; }
-    }
+        public bool? OnlyFollowing { get; set; }    }
 
     #endregion
 
     #region Media DTOs
     
-    public class MediaUploadDTO
+    public class MultipleMediaUploadDTO
     {
-        public IFormFile? Media { get; set; }
-        
-        [StringLength(20)]
-        public string MediaType { get; set; } = "image"; // Default is image; other values: "video", "file"
+        public List<IFormFile> MediaFiles { get; set; } = new List<IFormFile>();
+        public List<string> MediaTypes { get; set; } = new List<string>(); // Corresponding media types for each file
     }
 
     public class UploadMediaResult
@@ -101,6 +125,14 @@ namespace SocialApp.DTOs
         public long FileSize { get; set; }  // Size in bytes
         public string? ResourceType { get; set; } // "image", "video", or "raw"
         public string? MediaType { get; set; } // MIME type
+        public string? MediaFilename { get; set; }
+    }
+
+    public class MultipleUploadMediaResult
+    {
+        public bool Success { get; set; }
+        public string? Message { get; set; }
+        public List<UploadMediaResult> Results { get; set; } = new List<UploadMediaResult>();
     }
 
     #endregion

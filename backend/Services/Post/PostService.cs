@@ -27,9 +27,7 @@ public class PostService : IPostService
         _context = context;
         _logger = logger;
         _cloudinaryService = cloudinaryService;
-    }
-
-    public async Task<PostResponseDTO?> CreatePostAsync(int userId, CreatePostDTO postDto)
+    }    public async Task<PostResponseDTO?> CreatePostAsync(int userId, CreatePostDTO postDto)
     {
         try
         {
@@ -38,12 +36,14 @@ public class PostService : IPostService
             {
                 _logger.LogWarning("Attempted to create post for non-existent or deleted user: {UserId}", userId);
                 return null;
-            }            var post = new Models.Post
+            }
+
+            var post = new Models.Post
             {
                 Content = postDto.Content,
-                MediaUrl = postDto.MediaUrl,
-                MediaType = postDto.MediaType,
-                MediaPublicId = postDto.MediaPublicId,
+                MediaUrl = postDto.MediaUrl, // Legacy support
+                MediaType = postDto.MediaType, // Legacy support
+                MediaPublicId = postDto.MediaPublicId, // Legacy support
                 Location = postDto.Location,
                 CreatedAt = DateTime.UtcNow,
                 UserId = userId
@@ -52,6 +52,35 @@ public class PostService : IPostService
             _context.Posts.Add(post);
             await _context.SaveChangesAsync();
 
+            // Add multiple media files if provided
+            if (postDto.MediaFiles != null && postDto.MediaFiles.Any())
+            {
+                var mediaEntities = new List<Models.PostMedia>();
+                for (int i = 0; i < postDto.MediaFiles.Count; i++)
+                {
+                    var mediaDto = postDto.MediaFiles[i];
+                    var mediaEntity = new Models.PostMedia
+                    {
+                        PostId = post.Id,
+                        MediaUrl = mediaDto.MediaUrl,
+                        MediaType = mediaDto.MediaType,
+                        MediaPublicId = mediaDto.MediaPublicId,
+                        MediaMimeType = mediaDto.MediaMimeType,
+                        MediaFilename = mediaDto.MediaFilename,
+                        MediaFileSize = mediaDto.MediaFileSize,
+                        Width = mediaDto.Width,
+                        Height = mediaDto.Height,
+                        Duration = mediaDto.Duration,
+                        OrderIndex = mediaDto.OrderIndex,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    mediaEntities.Add(mediaEntity);
+                }
+                
+                _context.PostMedias.AddRange(mediaEntities);
+                await _context.SaveChangesAsync();
+            }
+
             return await GetPostByIdAsync(post.Id, userId);
         }
         catch (Exception ex)
@@ -59,25 +88,61 @@ public class PostService : IPostService
             _logger.LogError(ex, "Error creating post for user {UserId}", userId);
             throw;
         }
-    }
-
-    public async Task<PostResponseDTO?> UpdatePostAsync(int userId, int postId, UpdatePostDTO postDto)
+    }    public async Task<PostResponseDTO?> UpdatePostAsync(int userId, int postId, UpdatePostDTO postDto)
     {
         try
         {
             var post = await _context.Posts
+                .Include(p => p.MediaFiles)
                 .FirstOrDefaultAsync(p => p.Id == postId && p.UserId == userId);
 
             if (post == null)
             {
                 _logger.LogWarning("Post {PostId} not found for user {UserId}", postId, userId);
                 return null;
-            }            post.Content = postDto.Content;
-            post.MediaUrl = postDto.MediaUrl;
-            post.MediaType = postDto.MediaType;
-            post.MediaPublicId = postDto.MediaPublicId;
+            }
+
+            post.Content = postDto.Content;
+            post.MediaUrl = postDto.MediaUrl; // Legacy support
+            post.MediaType = postDto.MediaType; // Legacy support
+            post.MediaPublicId = postDto.MediaPublicId; // Legacy support
             post.Location = postDto.Location;
             post.UpdatedAt = DateTime.UtcNow;
+
+            // Update multiple media files if provided
+            if (postDto.MediaFiles != null)
+            {
+                // Remove existing media files
+                _context.PostMedias.RemoveRange(post.MediaFiles);
+                
+                // Add new media files
+                if (postDto.MediaFiles.Any())
+                {
+                    var mediaEntities = new List<Models.PostMedia>();
+                    for (int i = 0; i < postDto.MediaFiles.Count; i++)
+                    {
+                        var mediaDto = postDto.MediaFiles[i];
+                        var mediaEntity = new Models.PostMedia
+                        {
+                            PostId = post.Id,
+                            MediaUrl = mediaDto.MediaUrl,
+                            MediaType = mediaDto.MediaType,
+                            MediaPublicId = mediaDto.MediaPublicId,
+                            MediaMimeType = mediaDto.MediaMimeType,
+                            MediaFilename = mediaDto.MediaFilename,
+                            MediaFileSize = mediaDto.MediaFileSize,
+                            Width = mediaDto.Width,
+                            Height = mediaDto.Height,
+                            Duration = mediaDto.Duration,
+                            OrderIndex = mediaDto.OrderIndex,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        mediaEntities.Add(mediaEntity);
+                    }
+                    
+                    _context.PostMedias.AddRange(mediaEntities);
+                }
+            }
 
             await _context.SaveChangesAsync();
             return await GetPostByIdAsync(postId, userId);
@@ -122,15 +187,15 @@ public class PostService : IPostService
             _logger.LogError(ex, "Error deleting post {PostId} for user {UserId}", postId, userId);
             throw;
         }
-    }
-
-    public async Task<PostResponseDTO?> GetPostByIdAsync(int postId, int? currentUserId = null)
+    }    public async Task<PostResponseDTO?> GetPostByIdAsync(int postId, int? currentUserId = null)
     {
         try
-        {            var post = await _context.Posts
+        {
+            var post = await _context.Posts
                 .Include(p => p.User)
                 .Include(p => p.Comments)
                 .Include(p => p.Reactions)
+                .Include(p => p.MediaFiles)
                 .FirstOrDefaultAsync(p => p.Id == postId);
 
             if (post == null)
@@ -155,6 +220,7 @@ public class PostService : IPostService
                 .Include(p => p.User)
                 .Include(p => p.Comments)
                 .Include(p => p.Reactions)
+                .Include(p => p.MediaFiles)
                 .OrderByDescending(p => p.CreatedAt)
                 .AsQueryable();
 
@@ -222,6 +288,7 @@ public class PostService : IPostService
                 .Include(p => p.User)
                 .Include(p => p.Comments)
                 .Include(p => p.Reactions)
+                .Include(p => p.MediaFiles)
                 .Where(p => p.UserId == userId)
                 .OrderByDescending(p => p.CreatedAt);
 
@@ -249,109 +316,146 @@ public class PostService : IPostService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving posts for user {UserId}", userId);
-            throw;
-        }
-    }public async Task<UploadMediaResult> UploadPostMediaAsync(int userId, IFormFile media, string mediaType = "image")
+            throw;        }
+    }
+
+    public async Task<MultipleUploadMediaResult> UploadMultipleMediaAsync(int userId, List<IFormFile> mediaFiles, List<string> mediaTypes)
     {
         try
         {
-            if (media == null || media.Length == 0)
+            if (mediaFiles == null || !mediaFiles.Any())
             {
-                return new UploadMediaResult
+                return new MultipleUploadMediaResult
                 {
                     Success = false,
-                    Message = "No file uploaded"
-                };
-            }
-            
-            // Validate media type parameter
-            if (!IsValidMediaType(mediaType))
-            {
-                return new UploadMediaResult
-                {
-                    Success = false,
-                    Message = "Invalid media type. Allowed values are 'image', 'video', and 'file'."
+                    Message = "No media files provided"
                 };
             }
 
-            // Get allowed MIME types based on the media type
-            var allowedTypes = GetAllowedMimeTypes(mediaType);
-            
-            // Check if the content type is allowed for the selected media type
-            if (!allowedTypes.Contains(media.ContentType.ToLower()))
+            if (mediaTypes.Count != mediaFiles.Count)
             {
-                return new UploadMediaResult
+                return new MultipleUploadMediaResult
                 {
                     Success = false,
-                    Message = $"Invalid file type for {mediaType}. Allowed types: {string.Join(", ", allowedTypes)}"
+                    Message = "Media types count must match media files count"
                 };
             }
 
-            // Validate file size (limit varies by media type)
-            long maxSize = GetMaxFileSizeForMediaType(mediaType);
-            if (media.Length > maxSize)
+            var results = new List<UploadMediaResult>();
+            var failedUploads = new List<string>();            for (int i = 0; i < mediaFiles.Count; i++)
             {
-                return new UploadMediaResult
-                {
-                    Success = false,
-                    Message = $"File size exceeds the maximum allowed ({maxSize / (1024 * 1024)}MB)."
-                };
-            }
+                var mediaFile = mediaFiles[i];
+                var mediaType = mediaTypes[i];
 
-            // Use appropriate CloudinaryService upload method based on media type
-            using (var stream = media.OpenReadStream())
-            {
-                var fileName = $"{mediaType}_{userId}_{Guid.NewGuid()}";
-                CloudinaryUploadResult? uploadResult = null;
+                // Validate media file inline
+                if (mediaFile == null || mediaFile.Length == 0)
+                {
+                    failedUploads.Add($"{mediaFile?.FileName ?? $"File {i+1}"}: No file uploaded");
+                    continue;
+                }
                 
-                switch (mediaType.ToLower())
+                // Validate media type parameter
+                if (!IsValidMediaType(mediaType))
                 {
-                    case "image":
-                        uploadResult = await _cloudinaryService.UploadImageAsync(stream, fileName);
-                        break;
-                    case "video":
-                        uploadResult = await _cloudinaryService.UploadVideoAsync(stream, fileName);
-                        break;
-                    case "file":
-                        uploadResult = await _cloudinaryService.UploadFileAsync(stream, fileName);
-                        break;
+                    failedUploads.Add($"{mediaFile.FileName}: Invalid media type. Allowed values are 'image', 'video', and 'file'.");
+                    continue;
                 }
 
-                if (uploadResult == null)
+                // Get allowed MIME types based on the media type
+                var allowedTypes = GetAllowedMimeTypes(mediaType);
+                
+                // Check if the content type is allowed for the selected media type
+                if (!allowedTypes.Contains(mediaFile.ContentType.ToLower()))
                 {
-                    return new UploadMediaResult
+                    failedUploads.Add($"{mediaFile.FileName}: Invalid file type for {mediaType}. Allowed types: {string.Join(", ", allowedTypes)}");
+                    continue;
+                }
+
+                // Validate file size (limit varies by media type)
+                long maxSize = GetMaxFileSizeForMediaType(mediaType);
+                if (mediaFile.Length > maxSize)
+                {
+                    failedUploads.Add($"{mediaFile.FileName}: File size exceeds the maximum allowed ({maxSize / (1024 * 1024)}MB).");
+                    continue;
+                }
+
+                // Upload to Cloudinary
+                try
+                {
+                    using (var stream = mediaFile.OpenReadStream())
                     {
-                        Success = false,
-                        Message = $"Failed to upload {mediaType}"
-                    };
-                }
+                        var fileName = $"{mediaType}_{userId}_{Guid.NewGuid()}";
+                        CloudinaryUploadResult? uploadResult = null;
+                        
+                        switch (mediaType.ToLower())
+                        {
+                            case "image":
+                                uploadResult = await _cloudinaryService.UploadImageAsync(stream, fileName);
+                                break;
+                            case "video":
+                                uploadResult = await _cloudinaryService.UploadVideoAsync(stream, fileName);
+                                break;
+                            case "file":
+                                uploadResult = await _cloudinaryService.UploadFileAsync(stream, fileName);
+                                break;
+                        }
 
-                return new UploadMediaResult
+                        if (uploadResult == null)
+                        {
+                            failedUploads.Add($"{mediaFile.FileName}: Failed to upload {mediaType}");
+                            continue;
+                        }
+
+                        var result = new UploadMediaResult
+                        {
+                            Success = true,
+                            MediaUrl = uploadResult.Url,
+                            PublicId = uploadResult.PublicId,
+                            Width = uploadResult.Width,
+                            Height = uploadResult.Height,
+                            Format = uploadResult.Format,
+                            Duration = uploadResult.Duration,
+                            FileSize = uploadResult.FileSize,
+                            ResourceType = uploadResult.ResourceType,
+                            MediaType = uploadResult.MediaType,
+                            MediaFilename = mediaFile.FileName,
+                            Message = $"{mediaType} uploaded successfully"
+                        };
+                        results.Add(result);
+                    }
+                }
+                catch (Exception ex)
                 {
-                    Success = true,
-                    MediaUrl = uploadResult.Url,
-                    PublicId = uploadResult.PublicId,
-                    Width = uploadResult.Width,
-                    Height = uploadResult.Height,
-                    Format = uploadResult.Format,
-                    Duration = uploadResult.Duration,
-                    FileSize = uploadResult.FileSize,
-                    ResourceType = uploadResult.ResourceType,
-                    MediaType = uploadResult.MediaType,
-                    Message = $"{mediaType} uploaded successfully"
-                };
+                    _logger.LogError(ex, "Error uploading {MediaType} file {FileName} for user {UserId}", mediaType, mediaFile.FileName, userId);
+                    failedUploads.Add($"{mediaFile.FileName}: {ex.Message}");
+                }
             }
+
+            var allSuccess = results.Count == mediaFiles.Count;
+            var message = allSuccess 
+                ? $"Successfully uploaded {results.Count} media files"
+                : $"Uploaded {results.Count} out of {mediaFiles.Count} files. Failed: {string.Join(", ", failedUploads)}";
+
+            return new MultipleUploadMediaResult
+            {
+                Success = allSuccess,
+                Message = message,
+                Results = results
+            };
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error uploading {MediaType} for user {UserId}", mediaType, userId);
-            return new UploadMediaResult
+            _logger.LogError(ex, "Error uploading multiple media files for user {UserId}", userId);
+            return new MultipleUploadMediaResult
             {
                 Success = false,
-                Message = $"An error occurred: {ex.Message}"
+                Message = $"An error occurred: {ex.Message}",
+                Results = new List<UploadMediaResult>()
             };
         }
-    }    // Helper method to map Post entity to PostResponseDTO
+    }
+
+    // Helper method to map Post entity to PostResponseDTO
     private PostResponseDTO MapPostToResponseDTO(Models.Post post, int? currentUserId)
     {        bool hasReacted = false;
         string? currentUserReactionType = null;
@@ -374,21 +478,35 @@ public class PostService : IPostService
                     currentUserReactionType = userReaction.ReactionType;
                 }
             }
-        }
-
-        return new PostResponseDTO
+        }        return new PostResponseDTO
         {
             Id = post.Id,
             Content = post.Content,
-            MediaUrl = post.MediaUrl,
-            MediaType = post.MediaType,
+            MediaUrl = post.MediaUrl, // Legacy support
+            MediaType = post.MediaType, // Legacy support
             MediaMimeType = (post.MediaType != null && post.MediaUrl != null) 
                 ? GetMimeTypeForMediaType(post.MediaType, post.MediaUrl)
-                : null,            CreatedAt = post.CreatedAt,
+                : null,
+            // Map multiple media files
+            MediaFiles = post.MediaFiles?.Select(m => new PostMediaDTO
+            {
+                MediaUrl = m.MediaUrl,
+                MediaType = m.MediaType,
+                MediaPublicId = m.MediaPublicId,
+                MediaMimeType = m.MediaMimeType,
+                MediaFilename = m.MediaFilename,
+                MediaFileSize = m.MediaFileSize,
+                Width = m.Width,
+                Height = m.Height,
+                Duration = m.Duration,
+                OrderIndex = m.OrderIndex
+            }).OrderBy(m => m.OrderIndex).ToList() ?? new List<PostMediaDTO>(),
+            CreatedAt = post.CreatedAt,
             UpdatedAt = post.UpdatedAt,
             UserId = post.UserId,
             Location = post.Location,
-            Username = post.User.Username,ProfilePictureUrl = post.User.ProfilePictureUrl,
+            Username = post.User.Username,
+            ProfilePictureUrl = post.User.ProfilePictureUrl,
             CommentsCount = post.Comments?.Count ?? 0,
             HasReactedByCurrentUser = hasReacted,
             CurrentUserReactionType = currentUserReactionType,

@@ -17,9 +17,9 @@ public partial class SocialMediaDbContext : DbContext
 
     public virtual DbSet<Message> Messages { get; set; }
 
-    public virtual DbSet<Notification> Notifications { get; set; }
-
-    public virtual DbSet<Post> Posts { get; set; }
+    public virtual DbSet<Notification> Notifications { get; set; }    public virtual DbSet<Post> Posts { get; set; }
+    
+    public virtual DbSet<PostMedia> PostMedias { get; set; }
 
     public virtual DbSet<User> Users { get; set; }
 
@@ -93,15 +93,26 @@ public partial class SocialMediaDbContext : DbContext
             entity.HasOne(d => d.Post).WithMany(p => p.Notifications).HasForeignKey(d => d.PostId);
 
             entity.HasOne(d => d.User).WithMany(p => p.NotificationUsers).HasForeignKey(d => d.UserId);
-        });
-
-        modelBuilder.Entity<Post>(entity =>
+        });        modelBuilder.Entity<Post>(entity =>
         {
             entity.HasIndex(e => e.UserId, "IX_Posts_UserId");
 
             entity.Property(e => e.Content).HasMaxLength(500);
 
             entity.HasOne(d => d.User).WithMany(p => p.Posts).HasForeignKey(d => d.UserId);
+        });
+
+        modelBuilder.Entity<PostMedia>(entity =>
+        {
+            entity.HasIndex(e => e.PostId, "IX_PostMedias_PostId");
+
+            entity.Property(e => e.MediaType).HasMaxLength(20);
+            entity.Property(e => e.MediaMimeType).HasMaxLength(100);
+            entity.Property(e => e.MediaFilename).HasMaxLength(255);
+
+            entity.HasOne(d => d.Post).WithMany(p => p.MediaFiles)
+                .HasForeignKey(d => d.PostId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<User>(entity =>

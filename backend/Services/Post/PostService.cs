@@ -404,9 +404,7 @@ public class PostService : IPostService
                         {
                             failedUploads.Add($"{mediaFile.FileName}: Failed to upload {mediaType}");
                             continue;
-                        }
-
-                        var result = new UploadMediaResult
+                        }                        var result = new UploadMediaResult
                         {
                             Success = true,
                             MediaUrl = uploadResult.Url,
@@ -417,7 +415,7 @@ public class PostService : IPostService
                             Duration = uploadResult.Duration,
                             FileSize = uploadResult.FileSize,
                             ResourceType = uploadResult.ResourceType,
-                            MediaType = uploadResult.MediaType,
+                            MediaType = mediaType, // Use the simplified media type ("image", "video", "file")
                             MediaFilename = mediaFile.FileName,
                             Message = $"{mediaType} uploaded successfully"
                         };

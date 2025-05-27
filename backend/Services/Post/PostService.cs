@@ -41,9 +41,6 @@ public class PostService : IPostService
             var post = new Models.Post
             {
                 Content = postDto.Content,
-                MediaUrl = postDto.MediaUrl, // Legacy support
-                MediaType = postDto.MediaType, // Legacy support
-                MediaPublicId = postDto.MediaPublicId, // Legacy support
                 Location = postDto.Location,
                 CreatedAt = DateTime.UtcNow,
                 UserId = userId
@@ -80,6 +77,23 @@ public class PostService : IPostService
                 _context.PostMedias.AddRange(mediaEntities);
                 await _context.SaveChangesAsync();
             }
+            // Add legacy media support as a PostMedia entry if needed
+            else if (!string.IsNullOrEmpty(postDto.MediaUrl) && !string.IsNullOrEmpty(postDto.MediaType))
+            {
+                var legacyMedia = new Models.PostMedia
+                {
+                    PostId = post.Id,
+                    MediaUrl = postDto.MediaUrl,
+                    MediaType = postDto.MediaType,
+                    MediaPublicId = postDto.MediaPublicId,
+                    MediaMimeType = GetMimeTypeForMediaType(postDto.MediaType, postDto.MediaUrl),
+                    OrderIndex = 0,
+                    CreatedAt = DateTime.UtcNow
+                };
+                
+                _context.PostMedias.Add(legacyMedia);
+                await _context.SaveChangesAsync();
+            }
 
             return await GetPostByIdAsync(post.Id, userId);
         }
@@ -103,9 +117,6 @@ public class PostService : IPostService
             }
 
             post.Content = postDto.Content;
-            post.MediaUrl = postDto.MediaUrl; // Legacy support
-            post.MediaType = postDto.MediaType; // Legacy support
-            post.MediaPublicId = postDto.MediaPublicId; // Legacy support
             post.Location = postDto.Location;
             post.UpdatedAt = DateTime.UtcNow;
 
@@ -455,7 +466,8 @@ public class PostService : IPostService
 
     // Helper method to map Post entity to PostResponseDTO
     private PostResponseDTO MapPostToResponseDTO(Models.Post post, int? currentUserId)
-    {        bool hasReacted = false;
+    {        
+        bool hasReacted = false;
         string? currentUserReactionType = null;
         var reactionCounts = new Dictionary<string, int>();
         
@@ -476,15 +488,19 @@ public class PostService : IPostService
                     currentUserReactionType = userReaction.ReactionType;
                 }
             }
-        }        return new PostResponseDTO
+        }        
+        
+        // Get the first media file for legacy support in the response
+        var firstMedia = post.MediaFiles?.OrderBy(m => m.OrderIndex).FirstOrDefault();
+            
+        return new PostResponseDTO
         {
             Id = post.Id,
             Content = post.Content,
-            MediaUrl = post.MediaUrl, // Legacy support
-            MediaType = post.MediaType, // Legacy support
-            MediaMimeType = (post.MediaType != null && post.MediaUrl != null) 
-                ? GetMimeTypeForMediaType(post.MediaType, post.MediaUrl)
-                : null,
+            // Legacy support - use the first media item if available
+            MediaUrl = firstMedia?.MediaUrl,
+            MediaType = firstMedia?.MediaType,
+            MediaMimeType = firstMedia?.MediaMimeType,
             // Map multiple media files
             MediaFiles = post.MediaFiles?.Select(m => new PostMediaDTO
             {

@@ -34,13 +34,10 @@ namespace SocialApp.DTOs
         public List<PostMediaDTO>? MediaFiles { get; set; } = new List<PostMediaDTO>();
 
         public string? Location { get; set; }
-    }
-
-    public class UpdatePostDTO
+    }    public class UpdatePostDTO
     {
-        [Required]
-        [StringLength(500, MinimumLength = 1)]
-        public string Content { get; set; } = null!;
+        [StringLength(500)]
+        public string? Content { get; set; }
 
         // Legacy single media support (for backward compatibility)
         public string? MediaUrl { get; set; }
@@ -52,11 +49,10 @@ namespace SocialApp.DTOs
 
         public string? Location { get; set; }
     }
-    
-    public class PostResponseDTO
+      public class PostResponseDTO
     {
         public int Id { get; set; }
-        public string Content { get; set; } = null!;
+        public string? Content { get; set; }
         
         // Legacy single media support (for backward compatibility)
         public string? MediaUrl { get; set; }

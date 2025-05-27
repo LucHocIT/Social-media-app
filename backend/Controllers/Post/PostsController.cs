@@ -24,9 +24,7 @@ public class PostsController : ControllerBase
     {
         _postService = postService;
         _logger = logger;
-    }
-
-    [HttpPost]
+    }    [HttpPost]
     [Authorize]
     public async Task<ActionResult<PostResponseDTO>> CreatePost([FromBody] CreatePostDTO postDto)
     {
@@ -35,6 +33,15 @@ public class PostsController : ControllerBase
             if (!ModelState.IsValid)
             {
                 return BadRequest(ModelState);
+            }
+
+            // Custom validation: Either content or media files must be provided
+            bool hasContent = !string.IsNullOrWhiteSpace(postDto.Content);
+            bool hasMediaFiles = (postDto.MediaFiles?.Any() == true) || !string.IsNullOrEmpty(postDto.MediaUrl);
+            
+            if (!hasContent && !hasMediaFiles)
+            {
+                return BadRequest(new { message = "Either content or media files must be provided" });
             }
 
             int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");

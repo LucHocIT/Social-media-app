@@ -7,7 +7,7 @@ public partial class Post
 {
     public int Id { get; set; }
 
-    public string Content { get; set; } = null!;
+    public string? Content { get; set; }
 
     public string? MediaUrl { get; set; }
     

@@ -20,12 +20,10 @@ namespace SocialApp.DTOs
         public long? Duration { get; set; }
         public int OrderIndex { get; set; } = 0;
     }
-    
-    public class CreatePostDTO
+      public class CreatePostDTO
     {
-        [Required]
-        [StringLength(500, MinimumLength = 1)]
-        public string Content { get; set; } = null!;
+        [StringLength(500)]
+        public string? Content { get; set; }
 
         // Legacy single media support (for backward compatibility)
         public string? MediaUrl { get; set; }

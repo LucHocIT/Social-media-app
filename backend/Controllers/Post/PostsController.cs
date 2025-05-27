@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using SocialApp.DTOs;
 using SocialApp.Services.Post;
 using System;
+using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 
@@ -198,20 +199,22 @@ public class PostsController : ControllerBase
             _logger.LogError(ex, "Error deleting post {PostId}", postId);
             return StatusCode(500, new { message = "An error occurred while deleting the post" });
         }
-    }[HttpPost("upload-media")]
+    }
+
+    [HttpPost("upload-multiple-media")]
     [Authorize]
     [Consumes("multipart/form-data")]
-    public async Task<IActionResult> UploadMedia([FromForm] MediaUploadDTO uploadDto)
+    public async Task<IActionResult> UploadMultipleMedia([FromForm] MultipleMediaUploadDTO uploadDto)
     {
         try
         {
-            if (uploadDto == null || uploadDto.Media == null)
+            if (uploadDto == null || uploadDto.MediaFiles == null || !uploadDto.MediaFiles.Any())
             {
-                return BadRequest(new { message = "No media file provided" });
+                return BadRequest(new { message = "No media files provided" });
             }
 
             int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            var result = await _postService.UploadPostMediaAsync(currentUserId, uploadDto.Media, uploadDto.MediaType);
+            var result = await _postService.UploadMultipleMediaAsync(currentUserId, uploadDto.MediaFiles, uploadDto.MediaTypes);
 
             if (!result.Success)
             {
@@ -220,22 +223,27 @@ public class PostsController : ControllerBase
 
             return Ok(new
             {
-                mediaUrl = result.MediaUrl,
-                publicId = result.PublicId,
-                width = result.Width,
-                height = result.Height,
-                format = result.Format,
-                duration = result.Duration,
-                fileSize = result.FileSize,
-                resourceType = result.ResourceType,
-                mediaType = result.MediaType,
-                message = result.Message
+                success = result.Success,
+                message = result.Message,
+                results = result.Results.Select(r => new
+                {
+                    mediaUrl = r.MediaUrl,
+                    publicId = r.PublicId,
+                    width = r.Width,
+                    height = r.Height,
+                    format = r.Format,
+                    duration = r.Duration,
+                    fileSize = r.FileSize,
+                    resourceType = r.ResourceType,
+                    mediaType = r.MediaType,
+                    mediaFilename = r.MediaFilename
+                })
             });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error uploading media");
-            return StatusCode(500, new { message = "An error occurred while uploading media" });
+            _logger.LogError(ex, "Error uploading multiple media files");
+            return StatusCode(500, new { message = "An error occurred while uploading media files" });
         }
     }
 }

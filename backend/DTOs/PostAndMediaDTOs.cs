@@ -14,10 +14,11 @@ namespace SocialApp.DTOs
         public string Content { get; set; } = null!;
 
         public string? MediaUrl { get; set; }
-        
-        public string? MediaType { get; set; } // "image", "video", "file"
+          public string? MediaType { get; set; } // "image", "video", "file"
         
         public string? MediaPublicId { get; set; }
+
+        public string? Location { get; set; }
     }
 
     public class UpdatePostDTO
@@ -27,9 +28,10 @@ namespace SocialApp.DTOs
         public string Content { get; set; } = null!;
 
         public string? MediaUrl { get; set; }
-        
-        public string? MediaType { get; set; } // "image", "video", "file"
+          public string? MediaType { get; set; } // "image", "video", "file"
         public string? MediaPublicId { get; set; }
+
+        public string? Location { get; set; }
     }
     
     public class PostResponseDTO
@@ -41,7 +43,11 @@ namespace SocialApp.DTOs
         public string? MediaMimeType { get; set; } // MIME type for the media
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
-        public int UserId { get; set; }        public string Username { get; set; } = null!;
+        public int UserId { get; set; }
+
+        public string? Location { get; set; }
+
+        public string Username { get; set; } = null!;
         public string? ProfilePictureUrl { get; set; }
         public int CommentsCount { get; set; }
         

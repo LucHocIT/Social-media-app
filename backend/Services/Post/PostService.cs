@@ -44,6 +44,7 @@ public class PostService : IPostService
                 MediaUrl = postDto.MediaUrl,
                 MediaType = postDto.MediaType,
                 MediaPublicId = postDto.MediaPublicId,
+                Location = postDto.Location,
                 CreatedAt = DateTime.UtcNow,
                 UserId = userId
             };
@@ -75,6 +76,7 @@ public class PostService : IPostService
             post.MediaUrl = postDto.MediaUrl;
             post.MediaType = postDto.MediaType;
             post.MediaPublicId = postDto.MediaPublicId;
+            post.Location = postDto.Location;
             post.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
@@ -382,11 +384,11 @@ public class PostService : IPostService
             MediaType = post.MediaType,
             MediaMimeType = (post.MediaType != null && post.MediaUrl != null) 
                 ? GetMimeTypeForMediaType(post.MediaType, post.MediaUrl)
-                : null,
-            CreatedAt = post.CreatedAt,
+                : null,            CreatedAt = post.CreatedAt,
             UpdatedAt = post.UpdatedAt,
             UserId = post.UserId,
-            Username = post.User.Username,            ProfilePictureUrl = post.User.ProfilePictureUrl,
+            Location = post.Location,
+            Username = post.User.Username,ProfilePictureUrl = post.User.ProfilePictureUrl,
             CommentsCount = post.Comments?.Count ?? 0,
             HasReactedByCurrentUser = hasReacted,
             CurrentUserReactionType = currentUserReactionType,

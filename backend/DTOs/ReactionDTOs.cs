@@ -13,12 +13,13 @@ namespace SocialApp.DTOs
         [StringLength(20)]
         public string ReactionType { get; set; } = "like"; // Default is like; other values: "love", "haha", "wow", "sad", "angry"
     }
-    
-    public class ReactionResponseDTO
+      public class ReactionResponseDTO
     {
         public int Id { get; set; }
         public int UserId { get; set; }
         public string Username { get; set; } = null!;
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
         public string? ProfilePictureUrl { get; set; }
         public int PostId { get; set; }
         public string ReactionType { get; set; } = null!;

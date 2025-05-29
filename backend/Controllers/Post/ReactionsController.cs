@@ -71,13 +71,13 @@ namespace SocialApp.Controllers.Post
                     if (user == null)
                     {
                         return NotFound(new { message = "User not found" });
-                    }
-
-                    return Ok(new ReactionResponseDTO
+                    }                    return Ok(new ReactionResponseDTO
                     {
                         Id = existingReaction.Id,
                         UserId = existingReaction.UserId,
                         Username = user.Username,
+                        FirstName = user.FirstName,
+                        LastName = user.LastName,
                         ProfilePictureUrl = user.ProfilePictureUrl,
                         PostId = existingReaction.PostId ?? 0,
                         ReactionType = existingReaction.ReactionType,
@@ -100,13 +100,13 @@ namespace SocialApp.Controllers.Post
                 if (currentUser == null)
                 {
                     return NotFound(new { message = "User not found" });
-                }
-
-                return Ok(new ReactionResponseDTO
+                }                return Ok(new ReactionResponseDTO
                 {
                     Id = reaction.Id,
                     UserId = reaction.UserId,
                     Username = currentUser.Username,
+                    FirstName = currentUser.FirstName,
+                    LastName = currentUser.LastName,
                     ProfilePictureUrl = currentUser.ProfilePictureUrl,
                     PostId = reaction.PostId ?? 0,
                     ReactionType = reaction.ReactionType,
@@ -246,12 +246,13 @@ namespace SocialApp.Controllers.Post
                     .Where(r => r.PostId == postId)
                     .OrderByDescending(r => r.CreatedAt)
                     .ToListAsync();
-                
-                var result = reactions.Select(r => new ReactionResponseDTO
+                  var result = reactions.Select(r => new ReactionResponseDTO
                 {
                     Id = r.Id,
                     UserId = r.UserId,
                     Username = r.User.Username,
+                    FirstName = r.User.FirstName,
+                    LastName = r.User.LastName,
                     ProfilePictureUrl = r.User.ProfilePictureUrl,
                     PostId = r.PostId ?? 0,
                     ReactionType = r.ReactionType,

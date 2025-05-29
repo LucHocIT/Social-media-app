@@ -9,14 +9,14 @@ public class RedisMessageService : IRedisMessageService
 {
     private readonly IDatabase _database;
     private readonly ILogger<RedisMessageService> _logger;
-    
+
     private const string USER_ONLINE_PREFIX = "user:online:";
     private const string USER_CONNECTIONS_PREFIX = "user:connections:";
     private const string TYPING_PREFIX = "typing:";
     private const string MESSAGES_CACHE_PREFIX = "messages:";
     private const string UNREAD_COUNT_PREFIX = "unread:";
     private const string CONVERSATIONS_CACHE_PREFIX = "conversations:";
-    
+
     private readonly TimeSpan TYPING_EXPIRY = TimeSpan.FromSeconds(5);
     private readonly TimeSpan MESSAGE_CACHE_EXPIRY = TimeSpan.FromHours(1);
     private readonly TimeSpan CONVERSATION_CACHE_EXPIRY = TimeSpan.FromMinutes(30);
@@ -28,14 +28,14 @@ public class RedisMessageService : IRedisMessageService
     }
 
     #region User Online Status
-    
+
     public async Task SetUserOnlineAsync(int userId, string connectionId)
     {
         try
         {
             var onlineKey = USER_ONLINE_PREFIX + userId;
             var connectionsKey = USER_CONNECTIONS_PREFIX + userId;
-            
+
             await _database.StringSetAsync(onlineKey, "1", TimeSpan.FromMinutes(5));
             await _database.SetAddAsync(connectionsKey, connectionId);
             await _database.KeyExpireAsync(connectionsKey, TimeSpan.FromMinutes(5));
@@ -52,7 +52,7 @@ public class RedisMessageService : IRedisMessageService
         {
             var connectionsKey = USER_CONNECTIONS_PREFIX + userId;
             await _database.SetRemoveAsync(connectionsKey, connectionId);
-            
+
             var remainingConnections = await _database.SetLengthAsync(connectionsKey);
             if (remainingConnections == 0)
             {
@@ -105,7 +105,7 @@ public class RedisMessageService : IRedisMessageService
         try
         {
             var typingKey = TYPING_PREFIX + conversationId;
-            
+
             if (isTyping)
             {
                 await _database.SetAddAsync(typingKey, userId);
@@ -161,9 +161,9 @@ public class RedisMessageService : IRedisMessageService
         {
             var cacheKey = MESSAGES_CACHE_PREFIX + conversationId;
             var json = await _database.StringGetAsync(cacheKey);
-            
+
             if (!json.HasValue) return null;
-            
+
             return JsonSerializer.Deserialize<List<MessageItemDTO>>(json!);
         }
         catch (Exception ex)
@@ -275,9 +275,9 @@ public class RedisMessageService : IRedisMessageService
         {
             var cacheKey = CONVERSATIONS_CACHE_PREFIX + userId;
             var json = await _database.StringGetAsync(cacheKey);
-            
+
             if (!json.HasValue) return null;
-            
+
             return JsonSerializer.Deserialize<List<ConversationDTO>>(json!);
         }
         catch (Exception ex)

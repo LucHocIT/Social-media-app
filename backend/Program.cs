@@ -78,9 +78,10 @@ builder.Services.AddCors(options =>
 });
 
 // DbContext
-builder.Services.AddDbContext<SocialMediaDbContext>(options => {
+builder.Services.AddDbContext<SocialMediaDbContext>(options =>
+{
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
-    options.ConfigureWarnings(warnings => 
+    options.ConfigureWarnings(warnings =>
         warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.MultipleCollectionIncludeWarning));
 });
 
@@ -149,7 +150,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(
             builder.Configuration["Jwt:Key"] ?? throw new ArgumentNullException("JWT Key not configured")))
     };
-    
+
     // SignalR JWT support
     options.Events = new JwtBearerEvents
     {
@@ -213,8 +214,8 @@ void SeedDatabase(SocialMediaDbContext context, IConfiguration configuration)
         if (pendingMigrations.Any())
         {
             var logger = app.Services.GetRequiredService<ILogger<Program>>();
-            logger.LogInformation("Applying {0} pending migrations: {1}", 
-                pendingMigrations.Count, 
+            logger.LogInformation("Applying {0} pending migrations: {1}",
+                pendingMigrations.Count,
                 string.Join(", ", pendingMigrations));
 
             // Apply pending migrations

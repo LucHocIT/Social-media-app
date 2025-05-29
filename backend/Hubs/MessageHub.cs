@@ -32,13 +32,13 @@ public class MessageHub : Hub
             {
                 // Add user to their personal group
                 await Groups.AddToGroupAsync(Context.ConnectionId, $"User_{userId.Value}");
-                
+
                 // Set user online status
                 await _messageService.UpdateUserOnlineStatusAsync(userId.Value, true, Context.ConnectionId);
-                
+
                 // Join conversation groups for this user
                 await JoinUserConversationGroups(userId.Value);
-                
+
                 _logger.LogInformation("User {UserId} connected with connection {ConnectionId}", userId.Value, Context.ConnectionId);
             }
         }
@@ -86,19 +86,19 @@ public class MessageHub : Hub
             }
 
             var result = await _messageService.SendMessageAsync(senderId.Value, messageDto);
-            
+
             if (result.Success && result.MessageData != null)
             {
                 // Send to sender (confirmation)
                 await Clients.Caller.SendAsync("MessageSent", result.MessageData);
-                
+
                 // Send to receiver if they're online
                 var receiverConnections = await _redisService.GetUserConnectionsAsync(messageDto.ReceiverId);
                 if (receiverConnections.Any())
                 {
                     await Clients.Clients(receiverConnections).SendAsync("MessageReceived", result.MessageData);
                 }
-                
+
                 // Notify conversation group about new message
                 var conversationDto = await _messageService.GetOrCreateConversationAsync(senderId.Value, messageDto.ReceiverId);
                 if (conversationDto != null)
@@ -131,8 +131,8 @@ public class MessageHub : Hub
 
             // Verify user is part of this conversation
             var conversation = await _messageService.GetOrCreateConversationAsync(userId.Value, 0); // This needs improvement
-            // For now, just join the group - in production, verify user belongs to conversation
-            
+                                                                                                    // For now, just join the group - in production, verify user belongs to conversation
+
             await Groups.AddToGroupAsync(Context.ConnectionId, $"Conversation_{conversationId}");
             _logger.LogInformation("User {UserId} joined conversation {ConversationId}", userId.Value, conversationId);
         }
@@ -150,7 +150,7 @@ public class MessageHub : Hub
         try
         {
             await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"Conversation_{conversationId}");
-            
+
             var userId = GetCurrentUserId();
             _logger.LogInformation("User {UserId} left conversation {ConversationId}", userId, conversationId);
         }
@@ -171,8 +171,8 @@ public class MessageHub : Hub
             if (!userId.HasValue) return;
 
             var success = await _messageService.MarkMessagesAsReadAsync(
-                userId.Value, 
-                markAsReadDto.ConversationId, 
+                userId.Value,
+                markAsReadDto.ConversationId,
                 markAsReadDto.LastReadMessageId);
 
             if (success)
@@ -238,7 +238,7 @@ public class MessageHub : Hub
         try
         {
             var onlineStatuses = new Dictionary<int, bool>();
-            
+
             foreach (var userId in userIds)
             {
                 var isOnline = await _messageService.IsUserOnlineAsync(userId);

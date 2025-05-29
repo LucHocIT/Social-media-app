@@ -9,28 +9,32 @@ public partial class SocialMediaDbContext : DbContext
     public SocialMediaDbContext(DbContextOptions<SocialMediaDbContext> options)
         : base(options)
     {
-    }    public virtual DbSet<Comment> Comments { get; set; }
-    
+    }
+    public virtual DbSet<Comment> Comments { get; set; }
+
     public virtual DbSet<CommentReport> CommentReports { get; set; }
-    
-    public virtual DbSet<Reaction> Reactions { get; set; }    public virtual DbSet<Conversation> Conversations { get; set; }
-    
+
+    public virtual DbSet<Reaction> Reactions { get; set; }
+    public virtual DbSet<Conversation> Conversations { get; set; }
+
     public virtual DbSet<MessageBatch> MessageBatches { get; set; }
-    
+
     public virtual DbSet<MessageAttachment> MessageAttachments { get; set; }
 
-    public virtual DbSet<Notification> Notifications { get; set; }public virtual DbSet<Post> Posts { get; set; }
-    
+    public virtual DbSet<Notification> Notifications { get; set; }
+    public virtual DbSet<Post> Posts { get; set; }
+
     public virtual DbSet<PostMedia> PostMedias { get; set; }
 
     public virtual DbSet<User> Users { get; set; }
 
     public virtual DbSet<UserFollower> UserFollowers { get; set; }
-    
+
     public virtual DbSet<EmailVerificationCode> EmailVerificationCodes { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
-    {        modelBuilder.Entity<Comment>(entity =>
+    {
+        modelBuilder.Entity<Comment>(entity =>
         {
             entity.HasIndex(e => e.ParentCommentId, "IX_Comments_ParentCommentId");
 
@@ -50,16 +54,17 @@ public partial class SocialMediaDbContext : DbContext
         });
 
         modelBuilder.Entity<Reaction>(entity =>
-        {            entity.HasIndex(e => e.PostId, "IX_Reactions_PostId");
+        {
+            entity.HasIndex(e => e.PostId, "IX_Reactions_PostId");
 
             entity.HasIndex(e => e.UserId, "IX_Reactions_UserId");
-            
+
             entity.Property(e => e.ReactionType).HasMaxLength(20).HasDefaultValue("like");
 
             entity.HasOne(d => d.Post).WithMany(p => p.Reactions).HasForeignKey(d => d.PostId);
 
             entity.HasOne(d => d.User).WithMany(p => p.Reactions).HasForeignKey(d => d.UserId);
-        });        modelBuilder.Entity<Conversation>(entity =>
+        }); modelBuilder.Entity<Conversation>(entity =>
         {
             entity.HasIndex(e => new { e.User1Id, e.User2Id }, "IX_Conversations_Users").IsUnique();
             entity.HasIndex(e => e.LastMessageAt, "IX_Conversations_LastMessageAt");
@@ -136,7 +141,7 @@ public partial class SocialMediaDbContext : DbContext
             entity.HasOne(d => d.Post).WithMany(p => p.Notifications).HasForeignKey(d => d.PostId);
 
             entity.HasOne(d => d.User).WithMany(p => p.NotificationUsers).HasForeignKey(d => d.UserId);
-        });        modelBuilder.Entity<Post>(entity =>
+        }); modelBuilder.Entity<Post>(entity =>
         {
             entity.HasIndex(e => e.UserId, "IX_Posts_UserId");
 
@@ -188,7 +193,7 @@ public partial class SocialMediaDbContext : DbContext
         modelBuilder.Entity<CommentReport>(entity =>
         {
             entity.HasIndex(e => e.CommentId, "IX_CommentReports_CommentId");
-            
+
             entity.HasIndex(e => e.ReporterId, "IX_CommentReports_ReporterId");
 
             entity.Property(e => e.Reason).HasMaxLength(300);

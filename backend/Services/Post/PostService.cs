@@ -516,10 +516,11 @@ public class PostService : IPostService
                 OrderIndex = m.OrderIndex
             }).OrderBy(m => m.OrderIndex).ToList() ?? new List<PostMediaDTO>(),
             CreatedAt = post.CreatedAt,
-            UpdatedAt = post.UpdatedAt,
-            UserId = post.UserId,
+            UpdatedAt = post.UpdatedAt,            UserId = post.UserId,
             Location = post.Location,
             Username = post.User.Username,
+            FirstName = post.User.FirstName,
+            LastName = post.User.LastName,
             ProfilePictureUrl = post.User.ProfilePictureUrl,
             CommentsCount = post.Comments?.Count ?? 0,
             HasReactedByCurrentUser = hasReacted,

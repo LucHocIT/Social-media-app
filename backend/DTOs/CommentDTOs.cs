@@ -28,11 +28,12 @@ namespace SocialApp.DTOs
         public int Id { get; set; }
         public string Content { get; set; } = null!;
         public DateTime CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
-        public int UserId { get; set; }
+        public DateTime? UpdatedAt { get; set; }        public int UserId { get; set; }
         public string Username { get; set; } = null!;
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
         public string? ProfilePictureUrl { get; set; }
-        public bool IsVerified { get; set; }        public int PostId { get; set; }
+        public bool IsVerified { get; set; }public int PostId { get; set; }
         public int? ParentCommentId { get; set; }
         public List<CommentResponseDTO> Replies { get; set; } = new List<CommentResponseDTO>();
         public int RepliesCount { get; set; }

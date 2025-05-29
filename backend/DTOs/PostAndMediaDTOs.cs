@@ -66,9 +66,9 @@ namespace SocialApp.DTOs
         public DateTime? UpdatedAt { get; set; }
         public int UserId { get; set; }
 
-        public string? Location { get; set; }
-
-        public string Username { get; set; } = null!;
+        public string? Location { get; set; }        public string Username { get; set; } = null!;
+        public string? FirstName { get; set; }
+        public string? LastName { get; set; }
         public string? ProfilePictureUrl { get; set; }
         public int CommentsCount { get; set; }
         

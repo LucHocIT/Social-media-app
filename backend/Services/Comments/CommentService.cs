@@ -227,6 +227,8 @@ namespace SocialApp.Services.Comment
                         ParentCommentId = comment.ParentCommentId,
                         UserId = comment.UserId,
                         Username = comment.User?.Username ?? string.Empty,
+                        FirstName = comment.User?.FirstName,
+                        LastName = comment.User?.LastName,
                         ProfilePictureUrl = comment.User?.ProfilePictureUrl,
                         Content = comment.Content,
                         CreatedAt = comment.CreatedAt,
@@ -237,7 +239,7 @@ namespace SocialApp.Services.Comment
                         CurrentUserReactionType = null,
                         RepliesCount = replyCount,
                         Replies = new List<CommentResponseDTO>() // Keep empty, will be loaded on demand
-                    };                    commentDtos.Add(commentDto);
+                    };commentDtos.Add(commentDto);
                 }
 
                 return commentDtos;
@@ -380,14 +382,15 @@ namespace SocialApp.Services.Comment
             var reactionCounts = reactions
                 .GroupBy(r => r.ReactionType)
                 .ToDictionary(g => g.Key, g => g.Count());
-                
-            return new CommentResponseDTO
+                  return new CommentResponseDTO
             {
                 Id = comment.Id,
                 PostId = comment.PostId,
                 ParentCommentId = comment.ParentCommentId,
                 UserId = comment.UserId,
                 Username = comment.User?.Username ?? string.Empty,
+                FirstName = comment.User?.FirstName,
+                LastName = comment.User?.LastName,
                 ProfilePictureUrl = comment.User?.ProfilePictureUrl,
                 Content = comment.Content,
                 CreatedAt = comment.CreatedAt,
@@ -442,8 +445,7 @@ namespace SocialApp.Services.Comment
 
                     // Recursively load nested replies
                     var nestedReplies = await GetRepliesByCommentIdAsync(reply.Id, currentUserId);
-                      
-                    var replyDto = new CommentResponseDTO
+                        var replyDto = new CommentResponseDTO
                     {
                         Id = reply.Id,
                         Content = reply.Content,
@@ -451,6 +453,8 @@ namespace SocialApp.Services.Comment
                         UpdatedAt = reply.UpdatedAt,
                         UserId = reply.UserId,
                         Username = reply.User.Username,
+                        FirstName = reply.User.FirstName,
+                        LastName = reply.User.LastName,
                         ProfilePictureUrl = reply.User.ProfilePictureUrl,
                         IsVerified = reply.User.Role == "Admin" || reply.User.Role == "Moderator",
                         PostId = reply.PostId,

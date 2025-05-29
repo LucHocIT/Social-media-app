@@ -35,10 +35,6 @@ public partial class User
     
     public virtual ICollection<CommentReport> CommentReports { get; set; } = new List<CommentReport>();
 
-    public virtual ICollection<Message> MessageReceivers { get; set; } = new List<Message>();
-
-    public virtual ICollection<Message> MessageSenders { get; set; } = new List<Message>();
-
     public virtual ICollection<Notification> NotificationFromUsers { get; set; } = new List<Notification>();
 
     public virtual ICollection<Notification> NotificationUsers { get; set; } = new List<Notification>();

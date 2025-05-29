@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 using Polly;
 using Polly.Extensions.Http;
+using StackExchange.Redis;
 using SocialApp.Models;
 using SocialApp.Services.Auth;
 using SocialApp.Services.Email;
@@ -13,6 +14,8 @@ using SocialApp.Services.User;
 using SocialApp.Services.Utils;
 using SocialApp.Services.Post;
 using SocialApp.Services.Comment;
+using SocialApp.Services.Message;
+using SocialApp.Hubs;
 using Microsoft.OpenApi.Models;
 
 // Load .env file if it exists (this should be before creating the builder)
@@ -81,6 +84,22 @@ builder.Services.AddDbContext<SocialMediaDbContext>(options => {
         warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.MultipleCollectionIncludeWarning));
 });
 
+// Redis Configuration
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+{
+    var configuration = sp.GetService<IConfiguration>();
+    var connectionString = configuration!.GetConnectionString("Redis") ?? "localhost:6379";
+    return ConnectionMultiplexer.Connect(connectionString);
+});
+
+// SignalR with Redis backplane
+builder.Services.AddSignalR()
+    .AddStackExchangeRedis(options =>
+    {
+        var redisConnectionString = builder.Configuration.GetConnectionString("Redis") ?? "localhost:6379";
+        options.Configuration = StackExchange.Redis.ConfigurationOptions.Parse(redisConnectionString);
+    });
+
 // Register services
 builder.Services.AddScoped<IUserAccountService, UserAccountService>();
 builder.Services.AddScoped<ISocialAuthService, SocialAuthService>();
@@ -92,6 +111,10 @@ builder.Services.AddScoped<IPostService, PostService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 builder.Services.AddScoped<ICommentReportService, CommentReportService>();
+
+// Message services
+builder.Services.AddScoped<IRedisMessageService, RedisMessageService>();
+builder.Services.AddScoped<IMessageService, MessageService>();
 
 // HttpClient for email verification
 builder.Services.AddHttpClient("EmailVerificationClient", client =>
@@ -126,6 +149,21 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(
             builder.Configuration["Jwt:Key"] ?? throw new ArgumentNullException("JWT Key not configured")))
     };
+    
+    // SignalR JWT support
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/messageHub"))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
+    };
 });
 
 var app = builder.Build();
@@ -141,6 +179,9 @@ app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// Map SignalR Hub
+app.MapHub<MessageHub>("/messageHub");
 
 // Seed the database
 using (var scope = app.Services.CreateScope())

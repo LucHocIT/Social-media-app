@@ -69,9 +69,7 @@ public class MessageHub : Hub
         await base.OnDisconnectedAsync(exception);
     }
 
-    #region Message Operations
-
-    /// <summary>
+    #region Message Operations    /// <summary>
     /// Send a message to another user
     /// </summary>
     public async Task SendMessage(SendMessageDTO messageDto)
@@ -85,41 +83,84 @@ public class MessageHub : Hub
                 return;
             }
 
-            var result = await _messageService.SendMessageAsync(senderId.Value, messageDto);
+            _logger.LogInformation("Processing message from {SenderId} to {ReceiverId}", senderId.Value, messageDto.ReceiverId);
 
-            if (result.Success && result.MessageData != null)
+            var result = await _messageService.SendMessageAsync(senderId.Value, messageDto);            if (result.Success && result.MessageData != null)
             {
-                // Send to sender (confirmation)
-                await Clients.Caller.SendAsync("MessageSent", result.MessageData);
-
-                // Send to receiver if they're online
-                var receiverConnections = await _redisService.GetUserConnectionsAsync(messageDto.ReceiverId);
-                if (receiverConnections.Any())
-                {
-                    await Clients.Clients(receiverConnections).SendAsync("MessageReceived", result.MessageData);
-                }
-
-                // Notify conversation group about new message
+                // Get or create conversation info
                 var conversationDto = await _messageService.GetOrCreateConversationAsync(senderId.Value, messageDto.ReceiverId);
                 if (conversationDto != null)
                 {
+                    _logger.LogInformation("Message sent successfully in conversation {ConversationId}", conversationDto.Id);
+
+                    // Ensure both users are in the conversation group
+                    await Groups.AddToGroupAsync(Context.ConnectionId, $"Conversation_{conversationDto.Id}");
+                    
+                    // Try to add receiver's connections to the group as well
+                    var receiverConnections = await _redisService.GetUserConnectionsAsync(messageDto.ReceiverId);
+                    foreach (var connectionId in receiverConnections)
+                    {
+                        await Groups.AddToGroupAsync(connectionId, $"Conversation_{conversationDto.Id}");
+                    }
+
+                    // Create message object for frontend
+                    var messageForFrontend = new
+                    {
+                        id = result.MessageData.Id,
+                        content = result.MessageData.Content,
+                        senderId = result.MessageData.SenderId,
+                        receiverId = messageDto.ReceiverId,
+                        conversationId = conversationDto.Id,
+                        sentAt = result.MessageData.SentAt,
+                        isRead = result.MessageData.IsRead,
+                        messageType = result.MessageData.MessageType,
+                        attachments = result.MessageData.Attachments
+                    };
+
+                    // Send to conversation group (both sender and receiver)
                     await Clients.Group($"Conversation_{conversationDto.Id}")
-                        .SendAsync("ConversationUpdated", conversationDto);
+                        .SendAsync("ReceiveMessage", messageForFrontend);
+
+                    // Also send to individual user groups as backup
+                    await Clients.Group($"User_{senderId.Value}")
+                        .SendAsync("MessageSent", messageForFrontend);
+                    
+                    await Clients.Group($"User_{messageDto.ReceiverId}")
+                        .SendAsync("ReceiveMessage", messageForFrontend);
+
+                    // Update conversation for both users
+                    var conversationUpdate = new
+                    {
+                        id = conversationDto.Id,
+                        lastMessage = messageForFrontend,
+                        lastMessageTime = result.MessageData.SentAt,
+                        lastMessageContent = result.MessageData.Content
+                    };
+
+                    await Clients.Group($"Conversation_{conversationDto.Id}")
+                        .SendAsync("ConversationUpdated", conversationUpdate);
+                        
+                    _logger.LogInformation("Message broadcasted from {SenderId} to {ReceiverId} in conversation {ConversationId}", 
+                        senderId.Value, messageDto.ReceiverId, conversationDto.Id);
+                }
+                else
+                {
+                    _logger.LogError("Failed to get conversation for message from {SenderId} to {ReceiverId}", senderId.Value, messageDto.ReceiverId);
+                    await Clients.Caller.SendAsync("Error", "Failed to get conversation");
                 }
             }
             else
             {
+                _logger.LogError("Failed to send message from {SenderId} to {ReceiverId}: {Message}", senderId.Value, messageDto.ReceiverId, result.Message);
                 await Clients.Caller.SendAsync("Error", result.Message);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error sending message");
+            _logger.LogError(ex, "Error sending message from {SenderId} to {ReceiverId}", GetCurrentUserId(), messageDto.ReceiverId);
             await Clients.Caller.SendAsync("Error", "Failed to send message");
         }
-    }
-
-    /// <summary>
+    }/// <summary>
     /// Join a specific conversation to receive realtime updates
     /// </summary>
     public async Task JoinConversation(int conversationId)
@@ -129,12 +170,19 @@ public class MessageHub : Hub
             var userId = GetCurrentUserId();
             if (!userId.HasValue) return;
 
-            // Verify user is part of this conversation
-            var conversation = await _messageService.GetOrCreateConversationAsync(userId.Value, 0); // This needs improvement
-                                                                                                    // For now, just join the group - in production, verify user belongs to conversation
-
-            await Groups.AddToGroupAsync(Context.ConnectionId, $"Conversation_{conversationId}");
-            _logger.LogInformation("User {UserId} joined conversation {ConversationId}", userId.Value, conversationId);
+            // Get conversation to verify user belongs to it
+            var conversations = await _messageService.GetUserConversationsAsync(userId.Value, 1, 100);
+            var conversation = conversations.FirstOrDefault(c => c.Id == conversationId);
+            
+            if (conversation != null)
+            {
+                await Groups.AddToGroupAsync(Context.ConnectionId, $"Conversation_{conversationId}");
+                _logger.LogInformation("User {UserId} joined conversation {ConversationId}", userId.Value, conversationId);
+            }
+            else
+            {
+                _logger.LogWarning("User {UserId} attempted to join conversation {ConversationId} they don't belong to", userId.Value, conversationId);
+            }
         }
         catch (Exception ex)
         {
@@ -265,18 +313,18 @@ public class MessageHub : Hub
             return userId;
         }
         return null;
-    }
-
-    private async Task JoinUserConversationGroups(int userId)
+    }    private async Task JoinUserConversationGroups(int userId)
     {
         try
         {
             // Get user's conversations and join their groups
-            var conversations = await _messageService.GetUserConversationsAsync(userId, 1, 50);
+            var conversations = await _messageService.GetUserConversationsAsync(userId, 1, 100);
             foreach (var conversation in conversations)
             {
                 await Groups.AddToGroupAsync(Context.ConnectionId, $"Conversation_{conversation.Id}");
+                _logger.LogDebug("User {UserId} auto-joined conversation {ConversationId} on connect", userId, conversation.Id);
             }
+            _logger.LogInformation("User {UserId} joined {Count} conversation groups", userId, conversations.Count);
         }
         catch (Exception ex)
         {

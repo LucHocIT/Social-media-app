@@ -263,16 +263,28 @@ public class MessageService : IMessageService
             conversation.SetUnreadCount(receiverId, conversation.GetUnreadCount(receiverId) + 1);
 
             await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
-
-            // Update Redis cache
+            await transaction.CommitAsync();            // Update Redis cache
             await _redisService.IncrementUnreadCountAsync(receiverId, conversation.Id);
             await _redisService.InvalidateMessageCacheAsync(conversation.Id);
             await _redisService.InvalidateUserConversationsCacheAsync(senderId);
             await _redisService.InvalidateUserConversationsCacheAsync(receiverId);
 
-            // Create response
+            // Create response DTO
             var messageItemDTO = await MapToMessageItemDTO(messageItem, attachments, senderId);
+            
+            // Cache the new message
+            try 
+            {
+                var existingMessages = await _redisService.GetCachedMessagesAsync(conversation.Id) ?? new List<MessageItemDTO>();
+                existingMessages.Add(messageItemDTO);
+                // Keep only the most recent 50 messages in cache
+                var recentMessages = existingMessages.OrderByDescending(m => m.SentAt).Take(50).ToList();
+                await _redisService.CacheRecentMessagesAsync(conversation.Id, recentMessages);
+            }
+            catch (Exception cacheEx)
+            {
+                _logger.LogWarning(cacheEx, "Failed to cache new message for conversation {ConversationId}", conversation.Id);
+            }
             
             return new SendMessageResponseDTO
             {

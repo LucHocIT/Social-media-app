@@ -2,6 +2,10 @@
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 Write-Host "Đang khởi động SocialApp..." -ForegroundColor Green
 
+# Khởi động Redis trước
+Write-Host "Starting Redis..." -ForegroundColor Yellow
+& "$PSScriptRoot\start-redis.ps1"
+
 # Tạo thư mục để chứa logs nếu chưa tồn tại
 $logsDir = ".\logs"
 if (-not (Test-Path $logsDir)) {

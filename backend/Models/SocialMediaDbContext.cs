@@ -12,14 +12,7 @@ public partial class SocialMediaDbContext : DbContext
     }
     public virtual DbSet<Comment> Comments { get; set; }
 
-    public virtual DbSet<CommentReport> CommentReports { get; set; }
-
-    public virtual DbSet<Reaction> Reactions { get; set; }
-    public virtual DbSet<Conversation> Conversations { get; set; }
-
-    public virtual DbSet<MessageBatch> MessageBatches { get; set; }
-
-    public virtual DbSet<MessageAttachment> MessageAttachments { get; set; }
+    public virtual DbSet<CommentReport> CommentReports { get; set; }    public virtual DbSet<Reaction> Reactions { get; set; }
 
     public virtual DbSet<Notification> Notifications { get; set; }
     public virtual DbSet<Post> Posts { get; set; }
@@ -63,65 +56,8 @@ public partial class SocialMediaDbContext : DbContext
 
             entity.HasOne(d => d.Post).WithMany(p => p.Reactions).HasForeignKey(d => d.PostId);
 
-            entity.HasOne(d => d.User).WithMany(p => p.Reactions).HasForeignKey(d => d.UserId);
-        }); modelBuilder.Entity<Conversation>(entity =>
-        {
-            entity.HasIndex(e => new { e.User1Id, e.User2Id }, "IX_Conversations_Users").IsUnique();
-            entity.HasIndex(e => e.LastMessageAt, "IX_Conversations_LastMessageAt");
-
-            entity.Property(e => e.LastMessageContent).HasMaxLength(500);
-
-            entity.HasOne(d => d.User1)
-                .WithMany()
-                .HasForeignKey(d => d.User1Id)
-                .OnDelete(DeleteBehavior.ClientSetNull);
-
-            entity.HasOne(d => d.User2)
-                .WithMany()
-                .HasForeignKey(d => d.User2Id)
-                .OnDelete(DeleteBehavior.ClientSetNull);
-
-            entity.HasOne(d => d.LastMessageSender)
-                .WithMany()
-                .HasForeignKey(d => d.LastMessageSenderId)
-                .OnDelete(DeleteBehavior.SetNull);
-        });
-
-        modelBuilder.Entity<MessageBatch>(entity =>
-        {
-            entity.HasIndex(e => e.ConversationId, "IX_MessageBatches_ConversationId");
-            entity.HasIndex(e => e.BatchStartTime, "IX_MessageBatches_BatchStartTime");
-
-            entity.Property(e => e.MessagesData).HasColumnType("nvarchar(max)");
-
-            entity.HasOne(d => d.Conversation)
-                .WithMany(p => p.MessageBatches)
-                .HasForeignKey(d => d.ConversationId)
-                .OnDelete(DeleteBehavior.Cascade);
-
-            entity.HasOne(d => d.Sender)
-                .WithMany()
-                .HasForeignKey(d => d.SenderId)
-                .OnDelete(DeleteBehavior.ClientSetNull);
-        });
-
-        modelBuilder.Entity<MessageAttachment>(entity =>
-        {
-            entity.HasIndex(e => e.MessageBatchId, "IX_MessageAttachments_MessageBatchId");
-            entity.HasIndex(e => e.MessageItemId, "IX_MessageAttachments_MessageItemId");
-
-            entity.Property(e => e.FileName).HasMaxLength(255);
-            entity.Property(e => e.OriginalFileName).HasMaxLength(255);
-            entity.Property(e => e.MediaType).HasMaxLength(20);
-            entity.Property(e => e.MimeType).HasMaxLength(100);
-            entity.Property(e => e.CloudinaryPublicId).HasMaxLength(255);
-
-            entity.HasOne(d => d.MessageBatch)
-                .WithMany(p => p.Attachments)
-                .HasForeignKey(d => d.MessageBatchId)
-                .OnDelete(DeleteBehavior.Cascade);
-        });
-
+            entity.HasOne(d => d.User).WithMany(p => p.Reactions).HasForeignKey(d => d.UserId);        }); 
+        
         modelBuilder.Entity<Notification>(entity =>
         {
             entity.HasIndex(e => e.CommentId, "IX_Notifications_CommentId");

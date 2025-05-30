@@ -13,22 +13,15 @@ namespace SocialApp.Services.Chat
         {
             _context = context;
             _logger = logger;
-        }
-
-        public async Task<ChatRoomDto> CreateChatRoomAsync(int currentUserId, CreateChatRoomDto createChatRoomDto)
+        }        public async Task<ChatRoomDto> CreateChatRoomAsync(int currentUserId, CreateChatRoomDto createChatRoomDto)
         {
             using var transaction = await _context.Database.BeginTransactionAsync();
             try
             {
-                // For private chats, check if one already exists
-                if (createChatRoomDto.Type == ChatRoomType.Private && createChatRoomDto.MemberUserIds.Count == 1)
+                // Prevent creating private chats through this method to avoid duplicates
+                if (createChatRoomDto.Type == ChatRoomType.Private)
                 {
-                    var otherUserId = createChatRoomDto.MemberUserIds[0];
-                    var existingPrivateChat = await GetExistingPrivateChatAsync(currentUserId, otherUserId);
-                    if (existingPrivateChat != null)
-                    {
-                        return existingPrivateChat;
-                    }
+                    throw new InvalidOperationException("Private chats must be created through GetOrCreatePrivateChatAsync method to prevent duplicates");
                 }
 
                 // Create chat room
@@ -505,26 +498,64 @@ namespace SocialApp.Services.Chat
             chatRoom.IsActive = false;
             await _context.SaveChangesAsync();
             return true;
-        }
-
-        public async Task<ChatRoomDto?> GetOrCreatePrivateChatAsync(int currentUserId, int otherUserId)
+        }        public async Task<ChatRoomDto?> GetOrCreatePrivateChatAsync(int currentUserId, int otherUserId)
         {
             // Try to find existing private chat
             var existingChat = await GetExistingPrivateChatAsync(currentUserId, otherUserId);
             if (existingChat != null) return existingChat;
 
-            // Create new private chat
+            // Create new private chat directly (bypass the public CreateChatRoomAsync validation)
             var otherUser = await _context.Users.FindAsync(otherUserId);
             if (otherUser == null) return null;
 
-            var createChatDto = new CreateChatRoomDto
+            using var transaction = await _context.Database.BeginTransactionAsync();
+            try
             {
-                Name = $"Private chat with {otherUser.FirstName ?? ""} {otherUser.LastName ?? ""}",
-                Type = ChatRoomType.Private,
-                MemberUserIds = new List<int> { otherUserId }
-            };
+                // Create chat room
+                var chatRoom = new ChatRoom
+                {
+                    Name = $"Private chat with {otherUser.FirstName ?? ""} {otherUser.LastName ?? ""}",
+                    Description = null,
+                    Type = ChatRoomType.Private,
+                    CreatedByUserId = currentUserId,
+                    CreatedAt = DateTime.UtcNow,
+                    LastActivity = DateTime.UtcNow
+                };
 
-            return await CreateChatRoomAsync(currentUserId, createChatDto);
+                _context.ChatRooms.Add(chatRoom);
+                await _context.SaveChangesAsync();
+
+                // Add both users as members
+                var members = new List<ChatRoomMember>
+                {
+                    new ChatRoomMember
+                    {
+                        ChatRoomId = chatRoom.Id,
+                        UserId = currentUserId,
+                        Role = ChatMemberRole.Member,
+                        JoinedAt = DateTime.UtcNow
+                    },
+                    new ChatRoomMember
+                    {
+                        ChatRoomId = chatRoom.Id,
+                        UserId = otherUserId,
+                        Role = ChatMemberRole.Member,
+                        JoinedAt = DateTime.UtcNow
+                    }
+                };
+
+                _context.ChatRoomMembers.AddRange(members);
+                await _context.SaveChangesAsync();
+                await transaction.CommitAsync();
+
+                return await GetChatRoomAsync(chatRoom.Id, currentUserId) ?? throw new InvalidOperationException("Failed to retrieve created private chat room");
+            }
+            catch (Exception ex)
+            {
+                await transaction.RollbackAsync();
+                _logger.LogError(ex, "Error creating private chat room");
+                throw;
+            }
         }
 
         public async Task<bool> MarkMessagesAsReadAsync(int chatRoomId, int userId, List<int> messageIds)

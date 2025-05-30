@@ -140,7 +140,6 @@ public partial class SocialMediaDbContext : DbContext
 
             entity.Property(e => e.Reason).HasMaxLength(300);
             entity.Property(e => e.Status).HasMaxLength(20).HasDefaultValue("Pending");
-
             entity.HasOne(d => d.Comment).WithMany(p => p.CommentReports)
                 .HasForeignKey(d => d.CommentId)
                 .OnDelete(DeleteBehavior.Cascade);

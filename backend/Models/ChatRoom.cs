@@ -29,11 +29,9 @@ namespace SocialApp.Models
         // Navigation properties
         public ICollection<ChatRoomMember> Members { get; set; } = new List<ChatRoomMember>();
         public ICollection<ChatMessage> Messages { get; set; } = new List<ChatMessage>();
-    }
-
-    public enum ChatRoomType
+    }    public enum ChatRoomType
     {
-        Private = 1,    // 1-on-1 chat
-        Group = 2       // Group chat
+        Private = 0,    // 1-on-1 chat
+        Group = 1       // Group chat
     }
 }

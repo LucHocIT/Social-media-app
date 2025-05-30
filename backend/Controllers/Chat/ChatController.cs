@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SocialApp.DTOs;
+using SocialApp.Models;
 using SocialApp.Services.Chat;
 using System.Security.Claims;
 
@@ -18,9 +19,7 @@ namespace SocialApp.Controllers.Chat
         {
             _chatService = chatService;
             _logger = logger;
-        }
-
-        [HttpPost("rooms")]
+        }        [HttpPost("rooms")]
         public async Task<IActionResult> CreateChatRoom([FromBody] CreateChatRoomDto createChatRoomDto)
         {
             try
@@ -29,6 +28,12 @@ namespace SocialApp.Controllers.Chat
                 if (!currentUserId.HasValue)
                 {
                     return Unauthorized("User not authenticated");
+                }
+
+                // Prevent creating private chats through this endpoint
+                if (createChatRoomDto.Type == ChatRoomType.Private)
+                {
+                    return BadRequest("Private chats must be created through the /api/chat/private/{otherUserId} endpoint to prevent duplicates");
                 }
 
                 var chatRoom = await _chatService.CreateChatRoomAsync(currentUserId.Value, createChatRoomDto);

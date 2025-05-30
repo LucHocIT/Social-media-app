@@ -12,7 +12,8 @@ public partial class SocialMediaDbContext : DbContext
     }
     public virtual DbSet<Comment> Comments { get; set; }
 
-    public virtual DbSet<CommentReport> CommentReports { get; set; }    public virtual DbSet<Reaction> Reactions { get; set; }
+    public virtual DbSet<CommentReport> CommentReports { get; set; }
+    public virtual DbSet<Reaction> Reactions { get; set; }
 
     public virtual DbSet<Notification> Notifications { get; set; }
     public virtual DbSet<Post> Posts { get; set; }
@@ -21,9 +22,14 @@ public partial class SocialMediaDbContext : DbContext
 
     public virtual DbSet<User> Users { get; set; }
 
-    public virtual DbSet<UserFollower> UserFollowers { get; set; }
+    public virtual DbSet<UserFollower> UserFollowers { get; set; }    public virtual DbSet<EmailVerificationCode> EmailVerificationCodes { get; set; }
 
-    public virtual DbSet<EmailVerificationCode> EmailVerificationCodes { get; set; }
+    // Chat-related DbSets
+    public virtual DbSet<ChatRoom> ChatRooms { get; set; }
+    public virtual DbSet<ChatRoomMember> ChatRoomMembers { get; set; }
+    public virtual DbSet<ChatMessage> ChatMessages { get; set; }
+    public virtual DbSet<ChatMessageReaction> ChatMessageReactions { get; set; }
+    public virtual DbSet<ChatMessageReadStatus> ChatMessageReadStatuses { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -140,7 +146,91 @@ public partial class SocialMediaDbContext : DbContext
                 .OnDelete(DeleteBehavior.Cascade);
 
             entity.HasOne(d => d.Reporter).WithMany(p => p.CommentReports)
-                .HasForeignKey(d => d.ReporterId)
+                .HasForeignKey(d => d.ReporterId)                .OnDelete(DeleteBehavior.ClientSetNull);
+        });
+
+        // Chat models configuration
+        modelBuilder.Entity<ChatRoom>(entity =>
+        {
+            entity.HasIndex(e => e.CreatedByUserId, "IX_ChatRooms_CreatedByUserId");
+
+            entity.Property(e => e.Name).HasMaxLength(100);
+            entity.Property(e => e.Type).HasConversion<int>();
+
+            entity.HasOne(d => d.CreatedByUser).WithMany()
+                .HasForeignKey(d => d.CreatedByUserId)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+        });
+
+        modelBuilder.Entity<ChatRoomMember>(entity =>
+        {
+            entity.HasIndex(e => e.ChatRoomId, "IX_ChatRoomMembers_ChatRoomId");
+            entity.HasIndex(e => e.UserId, "IX_ChatRoomMembers_UserId");
+            entity.HasIndex(e => new { e.ChatRoomId, e.UserId }, "IX_ChatRoomMembers_ChatRoomId_UserId").IsUnique();
+
+            entity.Property(e => e.Role).HasConversion<int>();
+
+            entity.HasOne(d => d.ChatRoom).WithMany(p => p.Members)
+                .HasForeignKey(d => d.ChatRoomId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+        });
+
+        modelBuilder.Entity<ChatMessage>(entity =>
+        {
+            entity.HasIndex(e => e.ChatRoomId, "IX_ChatMessages_ChatRoomId");
+            entity.HasIndex(e => e.SenderId, "IX_ChatMessages_SenderId");
+            entity.HasIndex(e => e.ReplyToMessageId, "IX_ChatMessages_ReplyToMessageId");
+
+            entity.Property(e => e.MessageType).HasConversion<int>();
+            entity.Property(e => e.AttachmentType).HasMaxLength(50);
+            entity.Property(e => e.AttachmentName).HasMaxLength(255);
+
+            entity.HasOne(d => d.ChatRoom).WithMany(p => p.Messages)
+                .HasForeignKey(d => d.ChatRoomId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.Sender).WithMany()
+                .HasForeignKey(d => d.SenderId)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+
+            entity.HasOne(d => d.ReplyToMessage).WithMany(p => p.Replies)
+                .HasForeignKey(d => d.ReplyToMessageId)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+        });
+
+        modelBuilder.Entity<ChatMessageReaction>(entity =>
+        {
+            entity.HasIndex(e => e.MessageId, "IX_ChatMessageReactions_MessageId");
+            entity.HasIndex(e => e.UserId, "IX_ChatMessageReactions_UserId");
+            entity.HasIndex(e => new { e.MessageId, e.UserId, e.ReactionType }, "IX_ChatMessageReactions_MessageId_UserId_ReactionType").IsUnique();
+
+            entity.Property(e => e.ReactionType).HasMaxLength(50);
+
+            entity.HasOne(d => d.Message).WithMany(p => p.Reactions)
+                .HasForeignKey(d => d.MessageId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+        });
+
+        modelBuilder.Entity<ChatMessageReadStatus>(entity =>
+        {
+            entity.HasIndex(e => e.MessageId, "IX_ChatMessageReadStatuses_MessageId");
+            entity.HasIndex(e => e.UserId, "IX_ChatMessageReadStatuses_UserId");
+            entity.HasIndex(e => new { e.MessageId, e.UserId }, "IX_ChatMessageReadStatuses_MessageId_UserId").IsUnique();
+
+            entity.HasOne(d => d.Message).WithMany(p => p.ReadStatuses)
+                .HasForeignKey(d => d.MessageId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.ClientSetNull);
         });
 

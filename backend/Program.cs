@@ -14,6 +14,8 @@ using SocialApp.Services.User;
 using SocialApp.Services.Utils;
 using SocialApp.Services.Post;
 using SocialApp.Services.Comment;
+using SocialApp.Services.Chat;
+using SocialApp.Hubs;
 using Microsoft.OpenApi.Models;
 
 // Load .env file if it exists (this should be before creating the builder)
@@ -78,13 +80,15 @@ builder.Services.AddCors(options =>
 // DbContext
 builder.Services.AddDbContext<SocialMediaDbContext>(options =>
 {
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));
-    options.ConfigureWarnings(warnings =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));    options.ConfigureWarnings(warnings =>
     {
         warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.MultipleCollectionIncludeWarning);
         warnings.Ignore(SqlServerEventId.SavepointsDisabledBecauseOfMARS);
     });
 });
+
+// SignalR Configuration (without Redis)
+builder.Services.AddSignalR();
 
 // Register services
 builder.Services.AddScoped<IUserAccountService, UserAccountService>();
@@ -97,6 +101,9 @@ builder.Services.AddScoped<IPostService, PostService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 builder.Services.AddScoped<ICommentReportService, CommentReportService>();
+builder.Services.AddScoped<IChatService, ChatService>();
+
+// Message services
 
 // HttpClient for email verification
 builder.Services.AddHttpClient("EmailVerificationClient", client =>
@@ -127,8 +134,22 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],        IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(
+        ValidAudience = builder.Configuration["Jwt:Audience"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(
             builder.Configuration["Jwt:Key"] ?? throw new ArgumentNullException("JWT Key not configured")))
+    };    // SignalR JWT support
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            var path = context.HttpContext.Request.Path;
+            if (!string.IsNullOrEmpty(accessToken) && (path.StartsWithSegments("/chatHub") || path.StartsWithSegments("/messageHub")))
+            {
+                context.Token = accessToken;
+            }
+            return Task.CompletedTask;
+        }
     };
 });
 
@@ -145,6 +166,9 @@ app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
+
+// Map SignalR Hub
+app.MapHub<ChatHub>("/chatHub");
 
 // Seed the database
 using (var scope = app.Services.CreateScope())

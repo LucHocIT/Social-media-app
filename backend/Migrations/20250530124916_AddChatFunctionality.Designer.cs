@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SocialApp.Models;
 
@@ -11,9 +12,11 @@ using SocialApp.Models;
 namespace SocialApp.Migrations
 {
     [DbContext(typeof(SocialMediaDbContext))]
-    partial class SocialMediaDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250530124916_AddChatFunctionality")]
+    partial class AddChatFunctionality
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -74,7 +77,7 @@ namespace SocialApp.Migrations
 
                     b.HasIndex(new[] { "SenderId" }, "IX_ChatMessages_SenderId");
 
-                    b.ToTable("ChatMessages", (string)null);
+                    b.ToTable("ChatMessages");
                 });
 
             modelBuilder.Entity("SocialApp.Models.ChatMessageReaction", b =>
@@ -108,7 +111,7 @@ namespace SocialApp.Migrations
 
                     b.HasIndex(new[] { "UserId" }, "IX_ChatMessageReactions_UserId");
 
-                    b.ToTable("ChatMessageReactions", (string)null);
+                    b.ToTable("ChatMessageReactions");
                 });
 
             modelBuilder.Entity("SocialApp.Models.ChatMessageReadStatus", b =>
@@ -137,7 +140,7 @@ namespace SocialApp.Migrations
 
                     b.HasIndex(new[] { "UserId" }, "IX_ChatMessageReadStatuses_UserId");
 
-                    b.ToTable("ChatMessageReadStatuses", (string)null);
+                    b.ToTable("ChatMessageReadStatuses");
                 });
 
             modelBuilder.Entity("SocialApp.Models.ChatRoom", b =>
@@ -175,7 +178,7 @@ namespace SocialApp.Migrations
 
                     b.HasIndex(new[] { "CreatedByUserId" }, "IX_ChatRooms_CreatedByUserId");
 
-                    b.ToTable("ChatRooms", (string)null);
+                    b.ToTable("ChatRooms");
                 });
 
             modelBuilder.Entity("SocialApp.Models.ChatRoomMember", b =>
@@ -216,7 +219,7 @@ namespace SocialApp.Migrations
 
                     b.HasIndex(new[] { "UserId" }, "IX_ChatRoomMembers_UserId");
 
-                    b.ToTable("ChatRoomMembers", (string)null);
+                    b.ToTable("ChatRoomMembers");
                 });
 
             modelBuilder.Entity("SocialApp.Models.Comment", b =>
@@ -255,7 +258,7 @@ namespace SocialApp.Migrations
 
                     b.HasIndex(new[] { "UserId" }, "IX_Comments_UserId");
 
-                    b.ToTable("Comments", (string)null);
+                    b.ToTable("Comments");
                 });
 
             modelBuilder.Entity("SocialApp.Models.CommentReport", b =>
@@ -296,7 +299,7 @@ namespace SocialApp.Migrations
 
                     b.HasIndex(new[] { "ReporterId" }, "IX_CommentReports_ReporterId");
 
-                    b.ToTable("CommentReports", (string)null);
+                    b.ToTable("CommentReports");
                 });
 
             modelBuilder.Entity("SocialApp.Models.EmailVerificationCode", b =>
@@ -326,7 +329,7 @@ namespace SocialApp.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("EmailVerificationCodes", (string)null);
+                    b.ToTable("EmailVerificationCodes");
                 });
 
             modelBuilder.Entity("SocialApp.Models.Notification", b =>
@@ -373,7 +376,7 @@ namespace SocialApp.Migrations
 
                     b.HasIndex(new[] { "UserId" }, "IX_Notifications_UserId");
 
-                    b.ToTable("Notifications", (string)null);
+                    b.ToTable("Notifications");
                 });
 
             modelBuilder.Entity("SocialApp.Models.Post", b =>
@@ -404,7 +407,7 @@ namespace SocialApp.Migrations
 
                     b.HasIndex(new[] { "UserId" }, "IX_Posts_UserId");
 
-                    b.ToTable("Posts", (string)null);
+                    b.ToTable("Posts");
                 });
 
             modelBuilder.Entity("SocialApp.Models.PostMedia", b =>
@@ -460,7 +463,7 @@ namespace SocialApp.Migrations
 
                     b.HasIndex(new[] { "PostId" }, "IX_PostMedias_PostId");
 
-                    b.ToTable("PostMedias", (string)null);
+                    b.ToTable("PostMedias");
                 });
 
             modelBuilder.Entity("SocialApp.Models.Reaction", b =>
@@ -500,7 +503,7 @@ namespace SocialApp.Migrations
 
                     b.HasIndex(new[] { "UserId" }, "IX_Reactions_UserId");
 
-                    b.ToTable("Reactions", (string)null);
+                    b.ToTable("Reactions");
                 });
 
             modelBuilder.Entity("SocialApp.Models.User", b =>
@@ -566,7 +569,7 @@ namespace SocialApp.Migrations
                     b.HasIndex(new[] { "Username" }, "IX_Users_Username")
                         .IsUnique();
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("SocialApp.Models.UserFollower", b =>
@@ -592,7 +595,7 @@ namespace SocialApp.Migrations
 
                     b.HasIndex(new[] { "FollowingId" }, "IX_UserFollowers_FollowingId");
 
-                    b.ToTable("UserFollowers", (string)null);
+                    b.ToTable("UserFollowers");
                 });
 
             modelBuilder.Entity("SocialApp.Models.ChatMessage", b =>

@@ -12,8 +12,8 @@ using SocialApp.Models;
 namespace SocialApp.Migrations
 {
     [DbContext(typeof(SocialMediaDbContext))]
-    [Migration("20250530124916_AddChatFunctionality")]
-    partial class AddChatFunctionality
+    [Migration("20250531143319_AddChatFeatures")]
+    partial class AddChatFeatures
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -25,62 +25,7 @@ namespace SocialApp.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
-            modelBuilder.Entity("SocialApp.Models.ChatMessage", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("AttachmentName")
-                        .HasMaxLength(255)
-                        .HasColumnType("nvarchar(255)");
-
-                    b.Property<string>("AttachmentType")
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<string>("AttachmentUrl")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<int>("ChatRoomId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Content")
-                        .IsRequired()
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<DateTime?>("EditedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("bit");
-
-                    b.Property<int>("MessageType")
-                        .HasColumnType("int");
-
-                    b.Property<int?>("ReplyToMessageId")
-                        .HasColumnType("int");
-
-                    b.Property<int>("SenderId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("SentAt")
-                        .HasColumnType("datetime2");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex(new[] { "ChatRoomId" }, "IX_ChatMessages_ChatRoomId");
-
-                    b.HasIndex(new[] { "ReplyToMessageId" }, "IX_ChatMessages_ReplyToMessageId");
-
-                    b.HasIndex(new[] { "SenderId" }, "IX_ChatMessages_SenderId");
-
-                    b.ToTable("ChatMessages");
-                });
-
-            modelBuilder.Entity("SocialApp.Models.ChatMessageReaction", b =>
+            modelBuilder.Entity("SocialApp.Models.ChatConversation", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -91,135 +36,52 @@ namespace SocialApp.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
-                    b.Property<int>("MessageId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("ReactionType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex(new[] { "MessageId" }, "IX_ChatMessageReactions_MessageId");
-
-                    b.HasIndex(new[] { "MessageId", "UserId", "ReactionType" }, "IX_ChatMessageReactions_MessageId_UserId_ReactionType")
-                        .IsUnique();
-
-                    b.HasIndex(new[] { "UserId" }, "IX_ChatMessageReactions_UserId");
-
-                    b.ToTable("ChatMessageReactions");
-                });
-
-            modelBuilder.Entity("SocialApp.Models.ChatMessageReadStatus", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("MessageId")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("ReadAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex(new[] { "MessageId" }, "IX_ChatMessageReadStatuses_MessageId");
-
-                    b.HasIndex(new[] { "MessageId", "UserId" }, "IX_ChatMessageReadStatuses_MessageId_UserId")
-                        .IsUnique();
-
-                    b.HasIndex(new[] { "UserId" }, "IX_ChatMessageReadStatuses_UserId");
-
-                    b.ToTable("ChatMessageReadStatuses");
-                });
-
-            modelBuilder.Entity("SocialApp.Models.ChatRoom", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("CreatedByUserId")
-                        .HasColumnType("int");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("nvarchar(max)");
-
-                    b.Property<bool>("IsActive")
+                    b.Property<bool>("IsUser1Active")
                         .HasColumnType("bit");
 
-                    b.Property<DateTime>("LastActivity")
+                    b.Property<bool>("IsUser2Active")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LastMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int?>("LastMessageSenderId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("LastMessageTime")
                         .HasColumnType("datetime2");
 
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("Type")
+                    b.Property<int>("MessageCount")
                         .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("User1Id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("User1LastRead")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("User2Id")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("User2LastRead")
+                        .HasColumnType("datetime2");
 
                     b.HasKey("Id");
 
-                    b.HasIndex(new[] { "CreatedByUserId" }, "IX_ChatRooms_CreatedByUserId");
+                    b.HasIndex("LastMessageSenderId");
 
-                    b.ToTable("ChatRooms");
-                });
+                    b.HasIndex("User2Id");
 
-            modelBuilder.Entity("SocialApp.Models.ChatRoomMember", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int");
+                    b.HasIndex(new[] { "LastMessageTime" }, "IX_ChatConversations_LastMessageTime");
 
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
-
-                    b.Property<int>("ChatRoomId")
-                        .HasColumnType("int");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<bool>("IsMuted")
-                        .HasColumnType("bit");
-
-                    b.Property<DateTime>("JoinedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime?>("LastReadAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("Role")
-                        .HasColumnType("int");
-
-                    b.Property<int>("UserId")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex(new[] { "ChatRoomId" }, "IX_ChatRoomMembers_ChatRoomId");
-
-                    b.HasIndex(new[] { "ChatRoomId", "UserId" }, "IX_ChatRoomMembers_ChatRoomId_UserId")
+                    b.HasIndex(new[] { "User1Id", "User2Id" }, "IX_ChatConversations_User1Id_User2Id")
                         .IsUnique();
 
-                    b.HasIndex(new[] { "UserId" }, "IX_ChatRoomMembers_UserId");
-
-                    b.ToTable("ChatRoomMembers");
+                    b.ToTable("ChatConversations");
                 });
 
             modelBuilder.Entity("SocialApp.Models.Comment", b =>
@@ -506,6 +368,49 @@ namespace SocialApp.Migrations
                     b.ToTable("Reactions");
                 });
 
+            modelBuilder.Entity("SocialApp.Models.SimpleMessage", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("ConversationId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int?>("ReplyToMessageId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SenderId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReplyToMessageId");
+
+                    b.HasIndex(new[] { "ConversationId" }, "IX_SimpleMessages_ConversationId");
+
+                    b.HasIndex(new[] { "ConversationId", "SentAt" }, "IX_SimpleMessages_ConversationId_SentAt");
+
+                    b.HasIndex(new[] { "SenderId" }, "IX_SimpleMessages_SenderId");
+
+                    b.HasIndex(new[] { "SentAt" }, "IX_SimpleMessages_SentAt");
+
+                    b.ToTable("SimpleMessages");
+                });
+
             modelBuilder.Entity("SocialApp.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -598,92 +503,28 @@ namespace SocialApp.Migrations
                     b.ToTable("UserFollowers");
                 });
 
-            modelBuilder.Entity("SocialApp.Models.ChatMessage", b =>
+            modelBuilder.Entity("SocialApp.Models.ChatConversation", b =>
                 {
-                    b.HasOne("SocialApp.Models.ChatRoom", "ChatRoom")
-                        .WithMany("Messages")
-                        .HasForeignKey("ChatRoomId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("SocialApp.Models.ChatMessage", "ReplyToMessage")
-                        .WithMany("Replies")
-                        .HasForeignKey("ReplyToMessageId");
-
-                    b.HasOne("SocialApp.Models.User", "Sender")
+                    b.HasOne("SocialApp.Models.User", "LastMessageSender")
                         .WithMany()
-                        .HasForeignKey("SenderId")
-                        .IsRequired();
+                        .HasForeignKey("LastMessageSenderId")
+                        .OnDelete(DeleteBehavior.SetNull);
 
-                    b.Navigation("ChatRoom");
-
-                    b.Navigation("ReplyToMessage");
-
-                    b.Navigation("Sender");
-                });
-
-            modelBuilder.Entity("SocialApp.Models.ChatMessageReaction", b =>
-                {
-                    b.HasOne("SocialApp.Models.ChatMessage", "Message")
-                        .WithMany("Reactions")
-                        .HasForeignKey("MessageId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("SocialApp.Models.User", "User")
+                    b.HasOne("SocialApp.Models.User", "User1")
                         .WithMany()
-                        .HasForeignKey("UserId")
+                        .HasForeignKey("User1Id")
                         .IsRequired();
 
-                    b.Navigation("Message");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("SocialApp.Models.ChatMessageReadStatus", b =>
-                {
-                    b.HasOne("SocialApp.Models.ChatMessage", "Message")
-                        .WithMany("ReadStatuses")
-                        .HasForeignKey("MessageId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("SocialApp.Models.User", "User")
+                    b.HasOne("SocialApp.Models.User", "User2")
                         .WithMany()
-                        .HasForeignKey("UserId")
+                        .HasForeignKey("User2Id")
                         .IsRequired();
 
-                    b.Navigation("Message");
+                    b.Navigation("LastMessageSender");
 
-                    b.Navigation("User");
-                });
+                    b.Navigation("User1");
 
-            modelBuilder.Entity("SocialApp.Models.ChatRoom", b =>
-                {
-                    b.HasOne("SocialApp.Models.User", "CreatedByUser")
-                        .WithMany()
-                        .HasForeignKey("CreatedByUserId")
-                        .IsRequired();
-
-                    b.Navigation("CreatedByUser");
-                });
-
-            modelBuilder.Entity("SocialApp.Models.ChatRoomMember", b =>
-                {
-                    b.HasOne("SocialApp.Models.ChatRoom", "ChatRoom")
-                        .WithMany("Members")
-                        .HasForeignKey("ChatRoomId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("SocialApp.Models.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .IsRequired();
-
-                    b.Navigation("ChatRoom");
-
-                    b.Navigation("User");
+                    b.Navigation("User2");
                 });
 
             modelBuilder.Entity("SocialApp.Models.Comment", b =>
@@ -796,6 +637,31 @@ namespace SocialApp.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("SocialApp.Models.SimpleMessage", b =>
+                {
+                    b.HasOne("SocialApp.Models.ChatConversation", "Conversation")
+                        .WithMany("Messages")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SocialApp.Models.SimpleMessage", "ReplyToMessage")
+                        .WithMany()
+                        .HasForeignKey("ReplyToMessageId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("SocialApp.Models.User", "Sender")
+                        .WithMany()
+                        .HasForeignKey("SenderId")
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+
+                    b.Navigation("ReplyToMessage");
+
+                    b.Navigation("Sender");
+                });
+
             modelBuilder.Entity("SocialApp.Models.UserFollower", b =>
                 {
                     b.HasOne("SocialApp.Models.User", "Follower")
@@ -813,19 +679,8 @@ namespace SocialApp.Migrations
                     b.Navigation("Following");
                 });
 
-            modelBuilder.Entity("SocialApp.Models.ChatMessage", b =>
+            modelBuilder.Entity("SocialApp.Models.ChatConversation", b =>
                 {
-                    b.Navigation("Reactions");
-
-                    b.Navigation("ReadStatuses");
-
-                    b.Navigation("Replies");
-                });
-
-            modelBuilder.Entity("SocialApp.Models.ChatRoom", b =>
-                {
-                    b.Navigation("Members");
-
                     b.Navigation("Messages");
                 });
 

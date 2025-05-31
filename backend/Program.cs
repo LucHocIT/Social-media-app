@@ -80,7 +80,7 @@ builder.Services.AddCors(options =>
             .WithOrigins("http://localhost:3000", "https://localhost:3000")
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials());
+            .AllowCredentials()); // Important for SignalR
 });
 
 // DbContext
@@ -93,9 +93,6 @@ builder.Services.AddDbContext<SocialMediaDbContext>(options =>
     });
 });
 
-// SignalR Configuration (without Redis)
-builder.Services.AddSignalR();
-
 // Register services
 builder.Services.AddScoped<IUserAccountService, UserAccountService>();
 builder.Services.AddScoped<ISocialAuthService, SocialAuthService>();
@@ -107,7 +104,15 @@ builder.Services.AddScoped<IPostService, PostService>();
 builder.Services.AddScoped<ICloudinaryService, CloudinaryService>();
 builder.Services.AddScoped<ICommentService, CommentService>();
 builder.Services.AddScoped<ICommentReportService, CommentReportService>();
-builder.Services.AddScoped<IChatService, ChatService>();
+
+// Chat services
+builder.Services.AddScoped<ISimpleChatService, SimpleChatService>();
+
+// User presence service
+builder.Services.AddHostedService<UserPresenceService>();
+
+// SignalR
+builder.Services.AddSignalR();
 
 // Message services
 
@@ -140,17 +145,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
         ValidIssuer = builder.Configuration["Jwt:Issuer"],
-        ValidAudience = builder.Configuration["Jwt:Audience"],
-        IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(
+        ValidAudience = builder.Configuration["Jwt:Audience"],        IssuerSigningKey = new SymmetricSecurityKey(Encoding.ASCII.GetBytes(
             builder.Configuration["Jwt:Key"] ?? throw new ArgumentNullException("JWT Key not configured")))
-    };    // SignalR JWT support
+    };
+    
+    // Configure JWT for SignalR
     options.Events = new JwtBearerEvents
     {
         OnMessageReceived = context =>
         {
             var accessToken = context.Request.Query["access_token"];
             var path = context.HttpContext.Request.Path;
-            if (!string.IsNullOrEmpty(accessToken) && (path.StartsWithSegments("/chatHub") || path.StartsWithSegments("/messageHub")))
+            if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/chatHub"))
             {
                 context.Token = accessToken;
             }
@@ -172,9 +178,7 @@ app.UseCors("AllowFrontend");
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-
-// Map SignalR Hub
-app.MapHub<ChatHub>("/chatHub");
+app.MapHub<SimpleChatHub>("/chatHub");
 
 // Seed the database
 using (var scope = app.Services.CreateScope())

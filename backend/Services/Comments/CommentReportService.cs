@@ -56,7 +56,7 @@ namespace SocialApp.Services.Comment
                     CommentId = reportDto.CommentId,
                     ReporterId = reporterId,
                     Reason = reportDto.Reason,
-                    CreatedAt = DateTime.UtcNow,
+                    CreatedAt = DateTime.Now,
                     Status = "Pending"
                 };
                 
@@ -109,7 +109,7 @@ namespace SocialApp.Services.Comment
                 
                 if (statusDto.Status != "Pending")
                 {
-                    report.ResolvedAt = DateTime.UtcNow;
+                    report.ResolvedAt = DateTime.Now;
                 }
                 
                 await _context.SaveChangesAsync();

@@ -103,8 +103,8 @@ public class UserAccountService : IUserAccountService
             LastName = registerDto.LastName,
             Role = "User", // Default role is User
             IsDeleted = false, 
-            CreatedAt = DateTime.UtcNow,
-            LastActive = DateTime.UtcNow
+            CreatedAt = DateTime.Now,
+            LastActive = DateTime.Now
         };
 
         // Thêm người dùng vào database
@@ -141,7 +141,7 @@ public class UserAccountService : IUserAccountService
         }
 
         // Cập nhật thời gian hoạt động cuối
-        user.LastActive = DateTime.UtcNow;
+        user.LastActive = DateTime.Now;
         await _context.SaveChangesAsync();
 
         // Tạo token và trả về response
@@ -167,7 +167,7 @@ public class UserAccountService : IUserAccountService
                 new Claim(ClaimTypes.Name, user.Username),
                 new Claim(ClaimTypes.Role, user.Role)
             }),
-            Expires = DateTime.UtcNow.AddDays(7),
+            Expires = DateTime.Now.AddDays(7),
             SigningCredentials = new SigningCredentials(
                 new SymmetricSecurityKey(key),
                 SecurityAlgorithms.HmacSha256Signature
@@ -215,8 +215,8 @@ public class UserAccountService : IUserAccountService
                 LastName = registerDto.LastName,
                 Role = "User", // Default role is User
                 IsDeleted = false, 
-                CreatedAt = DateTime.UtcNow,
-                LastActive = DateTime.UtcNow
+                CreatedAt = DateTime.Now,
+                LastActive = DateTime.Now
             };
 
             // Add user to database
@@ -320,8 +320,8 @@ public class UserAccountService : IUserAccountService
                     ProfilePictureUrl = userInfo.PhotoUrl,
                     Role = "User",
                     IsDeleted = false,
-                    CreatedAt = DateTime.UtcNow,
-                    LastActive = DateTime.UtcNow
+                    CreatedAt = DateTime.Now,
+                    LastActive = DateTime.Now
                 };
                 
                 await _context.Users.AddAsync(user);
@@ -367,7 +367,7 @@ public class UserAccountService : IUserAccountService
                 }
                 
                 // Update last active
-                user.LastActive = DateTime.UtcNow;
+                user.LastActive = DateTime.Now;
                 await _context.SaveChangesAsync();
             }
             

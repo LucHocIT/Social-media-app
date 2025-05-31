@@ -107,7 +107,7 @@ public partial class ProfileService : IProfileService
             user.FirstName = profileDto.FirstName;
             user.LastName = profileDto.LastName;
             user.Bio = profileDto.Bio;
-            user.LastActive = DateTime.UtcNow;
+            user.LastActive = DateTime.Now;
 
             await _context.SaveChangesAsync();
             _logger.LogInformation("User {UserId} profile updated", userId);
@@ -133,7 +133,7 @@ public partial class ProfileService : IProfileService
             }
 
             user.ProfilePictureUrl = pictureUrl;
-            user.LastActive = DateTime.UtcNow;
+            user.LastActive = DateTime.Now;
 
             await _context.SaveChangesAsync();
             _logger.LogInformation("User {UserId} profile picture updated", userId);
@@ -282,7 +282,7 @@ public partial class ProfileService : IProfileService
             {
                 FollowerId = followerId,
                 FollowingId = followingId,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             });
 
             await _context.SaveChangesAsync();

@@ -89,7 +89,7 @@ namespace SocialApp.Controllers.Post
                     UserId = currentUserId,
                     PostId = reactionDto.PostId,
                     ReactionType = reactionDto.ReactionType,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.Now
                 };
 
                 _context.Reactions.Add(reaction);

@@ -28,7 +28,7 @@ namespace SocialApp.Hubs
                 var user = await _context.Users.FindAsync(userId.Value);
                 if (user != null)
                 {
-                    user.LastActive = DateTime.UtcNow;
+                    user.LastActive = DateTime.Now;
                     await _context.SaveChangesAsync();
                 }
 
@@ -58,7 +58,7 @@ namespace SocialApp.Hubs
                 var user = await _context.Users.FindAsync(userId.Value);
                 if (user != null)
                 {
-                    user.LastActive = DateTime.UtcNow;
+                    user.LastActive = DateTime.Now;
                     await _context.SaveChangesAsync();
                 }
 
@@ -103,16 +103,14 @@ namespace SocialApp.Hubs
                     .Include(m => m.ChatRoom)
                     .FirstOrDefaultAsync(m => m.ChatRoomId == chatRoomId && m.UserId == userId.Value && m.IsActive);
 
-                if (member == null) return;
-
-                // Create new message
+                if (member == null) return;                // Create new message
                 var message = new ChatMessage
                 {
                     ChatRoomId = chatRoomId,
                     SenderId = userId.Value,
                     Content = content,
                     MessageType = ChatMessageType.Text,
-                    SentAt = DateTime.UtcNow
+                    SentAt = DateTime.Now // Use local time instead of UTC
                 };
 
                 if (!string.IsNullOrEmpty(replyToMessageId) && int.TryParse(replyToMessageId, out int replyId))
@@ -123,7 +121,7 @@ namespace SocialApp.Hubs
                 _context.ChatMessages.Add(message);
 
                 // Update chat room last activity
-                member.ChatRoom.LastActivity = DateTime.UtcNow;
+                member.ChatRoom.LastActivity = DateTime.Now;
 
                 await _context.SaveChangesAsync();
 
@@ -159,7 +157,7 @@ namespace SocialApp.Hubs
                     {
                         MessageId = messageId,
                         UserId = userId.Value,
-                        ReadAt = DateTime.UtcNow
+                        ReadAt = DateTime.Now
                     };
 
                     _context.ChatMessageReadStatuses.Add(readStatus);
@@ -174,7 +172,7 @@ namespace SocialApp.Hubs
                     {
                         // Notify other members that this user has read the message
                         await Clients.Group($"ChatRoom_{message.ChatRoomId}")
-                            .SendAsync("MessageRead", new { MessageId = messageId, UserId = userId.Value, ReadAt = DateTime.UtcNow });
+                            .SendAsync("MessageRead", new { MessageId = messageId, UserId = userId.Value, ReadAt = DateTime.Now });
                     }
                 }
             }
@@ -213,7 +211,7 @@ namespace SocialApp.Hubs
                         MessageId = messageId,
                         UserId = userId.Value,
                         ReactionType = reactionType,
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = DateTime.Now
                     };
 
                     _context.ChatMessageReactions.Add(reaction);

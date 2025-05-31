@@ -19,10 +19,8 @@ namespace SocialApp.Models
 
         public int CreatedByUserId { get; set; }
         [ForeignKey("CreatedByUserId")]
-        public User CreatedByUser { get; set; } = null!;
-
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-        public DateTime LastActivity { get; set; } = DateTime.UtcNow;
+        public User CreatedByUser { get; set; } = null!;        public DateTime CreatedAt { get; set; } = DateTime.Now;
+        public DateTime LastActivity { get; set; } = DateTime.Now;
 
         public bool IsActive { get; set; } = true;
 

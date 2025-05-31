@@ -36,13 +36,11 @@ public class PostService : IPostService
             {
                 _logger.LogWarning("Attempted to create post for non-existent or deleted user: {UserId}", userId);
                 return null;
-            }
-
-            var post = new Models.Post
+            }            var post = new Models.Post
             {
                 Content = postDto.Content,
                 Location = postDto.Location,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.Now,
                 UserId = userId
             };
 
@@ -69,7 +67,7 @@ public class PostService : IPostService
                         Height = mediaDto.Height,
                         Duration = mediaDto.Duration,
                         OrderIndex = mediaDto.OrderIndex,
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = DateTime.Now
                     };
                     mediaEntities.Add(mediaEntity);
                 }
@@ -88,7 +86,7 @@ public class PostService : IPostService
                     MediaPublicId = postDto.MediaPublicId,
                     MediaMimeType = GetMimeTypeForMediaType(postDto.MediaType, postDto.MediaUrl),
                     OrderIndex = 0,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.Now
                 };
                 
                 _context.PostMedias.Add(legacyMedia);
@@ -118,7 +116,7 @@ public class PostService : IPostService
 
             post.Content = postDto.Content;
             post.Location = postDto.Location;
-            post.UpdatedAt = DateTime.UtcNow;
+            post.UpdatedAt = DateTime.Now;
 
             // Update multiple media files if provided
             if (postDto.MediaFiles != null)
@@ -146,7 +144,7 @@ public class PostService : IPostService
                             Height = mediaDto.Height,
                             Duration = mediaDto.Duration,
                             OrderIndex = mediaDto.OrderIndex,
-                            CreatedAt = DateTime.UtcNow
+                            CreatedAt = DateTime.Now
                         };
                         mediaEntities.Add(mediaEntity);
                     }

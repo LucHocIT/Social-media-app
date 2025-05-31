@@ -31,7 +31,7 @@ namespace SocialApp.Models
         [ForeignKey("ReplyToMessageId")]
         public ChatMessage? ReplyToMessage { get; set; }
 
-        public DateTime SentAt { get; set; } = DateTime.UtcNow;
+        public DateTime SentAt { get; set; } = DateTime.Now;
         public DateTime? EditedAt { get; set; }
         public bool IsDeleted { get; set; } = false;
 

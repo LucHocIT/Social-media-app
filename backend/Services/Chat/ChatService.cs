@@ -31,8 +31,8 @@ namespace SocialApp.Services.Chat
                     Description = createChatRoomDto.Description,
                     Type = createChatRoomDto.Type,
                     CreatedByUserId = currentUserId,
-                    CreatedAt = DateTime.UtcNow,
-                    LastActivity = DateTime.UtcNow
+                    CreatedAt = DateTime.Now,
+                    LastActivity = DateTime.Now
                 };
 
                 _context.ChatRooms.Add(chatRoom);
@@ -44,7 +44,7 @@ namespace SocialApp.Services.Chat
                     ChatRoomId = chatRoom.Id,
                     UserId = currentUserId,
                     Role = ChatMemberRole.Owner,
-                    JoinedAt = DateTime.UtcNow
+                    JoinedAt = DateTime.Now
                 };
                 _context.ChatRoomMembers.Add(creatorMember);
 
@@ -58,7 +58,7 @@ namespace SocialApp.Services.Chat
                             ChatRoomId = chatRoom.Id,
                             UserId = userId,
                             Role = ChatMemberRole.Member,
-                            JoinedAt = DateTime.UtcNow
+                            JoinedAt = DateTime.Now
                         };
                         _context.ChatRoomMembers.Add(member);
                     }
@@ -395,13 +395,13 @@ namespace SocialApp.Services.Chat
                 AttachmentType = sendMessageDto.AttachmentType,
                 AttachmentName = sendMessageDto.AttachmentName,
                 ReplyToMessageId = sendMessageDto.ReplyToMessageId,
-                SentAt = DateTime.UtcNow
+                SentAt = DateTime.Now
             };
 
             _context.ChatMessages.Add(message);
 
             // Update chat room last activity
-            member.ChatRoom.LastActivity = DateTime.UtcNow;
+            member.ChatRoom.LastActivity = DateTime.Now;
 
             await _context.SaveChangesAsync();
 
@@ -430,7 +430,7 @@ namespace SocialApp.Services.Chat
                 
                 // Reactivate inactive member
                 existingMember.IsActive = true;
-                existingMember.JoinedAt = DateTime.UtcNow;
+                existingMember.JoinedAt = DateTime.Now;
             }
             else
             {
@@ -440,7 +440,7 @@ namespace SocialApp.Services.Chat
                     ChatRoomId = chatRoomId,
                     UserId = addMemberDto.UserId,
                     Role = addMemberDto.Role,
-                    JoinedAt = DateTime.UtcNow
+                    JoinedAt = DateTime.Now
                 };
                 _context.ChatRoomMembers.Add(newMember);
             }
@@ -518,8 +518,8 @@ namespace SocialApp.Services.Chat
                     Description = null,
                     Type = ChatRoomType.Private,
                     CreatedByUserId = currentUserId,
-                    CreatedAt = DateTime.UtcNow,
-                    LastActivity = DateTime.UtcNow
+                    CreatedAt = DateTime.Now,
+                    LastActivity = DateTime.Now
                 };
 
                 _context.ChatRooms.Add(chatRoom);
@@ -533,14 +533,14 @@ namespace SocialApp.Services.Chat
                         ChatRoomId = chatRoom.Id,
                         UserId = currentUserId,
                         Role = ChatMemberRole.Member,
-                        JoinedAt = DateTime.UtcNow
+                        JoinedAt = DateTime.Now
                     },
                     new ChatRoomMember
                     {
                         ChatRoomId = chatRoom.Id,
                         UserId = otherUserId,
                         Role = ChatMemberRole.Member,
-                        JoinedAt = DateTime.UtcNow
+                        JoinedAt = DateTime.Now
                     }
                 };
 
@@ -577,7 +577,7 @@ namespace SocialApp.Services.Chat
                     {
                         MessageId = messageId,
                         UserId = userId,
-                        ReadAt = DateTime.UtcNow
+                        ReadAt = DateTime.Now
                     };
                     _context.ChatMessageReadStatuses.Add(readStatus);
                 }
@@ -588,7 +588,7 @@ namespace SocialApp.Services.Chat
                 .FirstOrDefaultAsync(m => m.ChatRoomId == chatRoomId && m.UserId == userId);
             if (member != null)
             {
-                member.LastReadAt = DateTime.UtcNow;
+                member.LastReadAt = DateTime.Now;
             }
 
             await _context.SaveChangesAsync();

@@ -52,8 +52,8 @@ namespace SocialApp.Services.Comment
                     UserId = userId,
                     ParentCommentId = commentDto.ParentCommentId,
                     Content = commentDto.Content,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now
                 };
 
                 _context.Comments.Add(comment);
@@ -70,7 +70,7 @@ namespace SocialApp.Services.Comment
                         Type = 1, // 1 = CommentOnPost
                         Content = "commented on your post",
                         IsRead = false,
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = DateTime.Now
                     };
                     _context.Notifications.Add(notification);
                     await _context.SaveChangesAsync();
@@ -88,7 +88,7 @@ namespace SocialApp.Services.Comment
                             Type = 2, // 2 = ReplyToComment
                             Content = "replied to your comment",
                             IsRead = false,
-                            CreatedAt = DateTime.UtcNow
+                            CreatedAt = DateTime.Now
                         };
                         _context.Notifications.Add(notification);
                         await _context.SaveChangesAsync();
@@ -123,7 +123,7 @@ namespace SocialApp.Services.Comment
                     return null;
                 }                // Update comment
                 comment.Content = commentDto.Content;
-                comment.UpdatedAt = DateTime.UtcNow;
+                comment.UpdatedAt = DateTime.Now;
 
                 _context.Comments.Update(comment);
                 await _context.SaveChangesAsync();
@@ -314,7 +314,7 @@ namespace SocialApp.Services.Comment
                 else if (existingReaction != null)
                 {
                     existingReaction.ReactionType = reactionDto.ReactionType;
-                    existingReaction.CreatedAt = DateTime.UtcNow;
+                    existingReaction.CreatedAt = DateTime.Now;
                     _context.Reactions.Update(existingReaction);
                     await _context.SaveChangesAsync();                }
                 // Otherwise, create a new reaction
@@ -326,7 +326,7 @@ namespace SocialApp.Services.Comment
                         EntityId = reactionDto.CommentId,
                         EntityType = "Comment",
                         ReactionType = reactionDto.ReactionType,
-                        CreatedAt = DateTime.UtcNow
+                        CreatedAt = DateTime.Now
                     };
                     
                     _context.Reactions.Add(reaction);
@@ -342,7 +342,7 @@ namespace SocialApp.Services.Comment
                             Type = 3, // 3 = ReactionOnComment
                             Content = $"reacted to your comment with {reactionDto.ReactionType}",
                             IsRead = false,
-                            CreatedAt = DateTime.UtcNow
+                            CreatedAt = DateTime.Now
                         };
                         
                         _context.Notifications.Add(notification);

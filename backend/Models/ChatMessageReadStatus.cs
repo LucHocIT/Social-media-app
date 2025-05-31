@@ -16,6 +16,6 @@ namespace SocialApp.Models
         [ForeignKey("UserId")]
         public User User { get; set; } = null!;
 
-        public DateTime ReadAt { get; set; } = DateTime.UtcNow;
+        public DateTime ReadAt { get; set; } = DateTime.Now;
     }
 }

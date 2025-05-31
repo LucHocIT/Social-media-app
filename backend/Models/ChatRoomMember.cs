@@ -16,7 +16,7 @@ namespace SocialApp.Models
         [ForeignKey("UserId")]
         public User User { get; set; } = null!;
 
-        public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
+        public DateTime JoinedAt { get; set; } = DateTime.Now;
         public DateTime? LastReadAt { get; set; }
 
         public ChatMemberRole Role { get; set; } = ChatMemberRole.Member;

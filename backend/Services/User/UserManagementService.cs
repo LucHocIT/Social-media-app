@@ -49,7 +49,7 @@ public class UserManagementService : IUserManagementService
         }
 
         user.IsDeleted = true;
-        user.DeletedAt = DateTime.UtcNow;
+        user.DeletedAt = DateTime.Now;
         await _context.SaveChangesAsync();
         
         _logger.LogInformation("User {UserId} soft deleted", userId);

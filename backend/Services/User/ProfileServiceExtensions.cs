@@ -100,7 +100,7 @@ public partial class ProfileService : IProfileService
                 
                 // Update user profile with new image URL
                 user.ProfilePictureUrl = uploadResult.Url;
-                user.LastActive = DateTime.UtcNow;
+                user.LastActive = DateTime.Now;
                 
                 await _context.SaveChangesAsync();
                 
@@ -148,7 +148,7 @@ public partial class ProfileService : IProfileService
             }
 
             user.ProfilePictureUrl = null;
-            user.LastActive = DateTime.UtcNow;
+            user.LastActive = DateTime.Now;
             
             await _context.SaveChangesAsync();
             return true;
@@ -191,7 +191,7 @@ public partial class ProfileService : IProfileService
 
             // Update the password
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
-            user.LastActive = DateTime.UtcNow;
+            user.LastActive = DateTime.Now;
 
             await _context.SaveChangesAsync();
             return true;
@@ -324,7 +324,7 @@ public partial class ProfileService : IProfileService
                 
                 // Update user profile with new image URL
                 user.ProfilePictureUrl = uploadResult.Url;
-                user.LastActive = DateTime.UtcNow;
+                user.LastActive = DateTime.Now;
                 
                 await _context.SaveChangesAsync();
                 

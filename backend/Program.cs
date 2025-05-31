@@ -24,7 +24,13 @@ DotEnv.Load(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        // Configure DateTime serialization
+        options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+    });
 builder.Services.AddEndpointsApiExplorer();
 
 // Swagger configuration
@@ -221,13 +227,12 @@ void SeedDatabase(SocialMediaDbContext context, IConfiguration configuration)
         var adminUser = new User
         {
             Username = "admin",
-            Email = "admin@example.com",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
+            Email = "admin@example.com",            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
             FirstName = "Admin",
             LastName = "User",
             Role = "Admin",
-            CreatedAt = DateTime.UtcNow,
-            LastActive = DateTime.UtcNow
+            CreatedAt = DateTime.Now,
+            LastActive = DateTime.Now
         };
 
         context.Users.Add(adminUser);

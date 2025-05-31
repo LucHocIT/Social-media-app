@@ -280,7 +280,7 @@ public class EmailVerificationService : IEmailVerificationService
     private async Task<(string Code, bool IsNewRequest)> SaveVerificationCodeAsync(string email)
     {
         string verificationCode = GenerateRandomCode();
-        DateTime expiresAt = DateTime.UtcNow.AddMinutes(10);
+        DateTime expiresAt = DateTime.Now.AddMinutes(10);
         bool isNewRequest = true;
         
         // Check for existing code
@@ -290,7 +290,7 @@ public class EmailVerificationService : IEmailVerificationService
         if (existingCode != null)
         {
             // Check if 5 minutes have passed since code was created (for resend cooldown)
-            var timeSinceCreation = DateTime.UtcNow - existingCode.CreatedAt;
+            var timeSinceCreation = DateTime.Now - existingCode.CreatedAt;
             if (timeSinceCreation.TotalMinutes < 5 && existingCode.CreatedAt != existingCode.ExpiresAt.AddMinutes(-10))
             {
                 // Less than 5 minutes passed, return the existing code without updating
@@ -300,7 +300,7 @@ public class EmailVerificationService : IEmailVerificationService
             
             // More than 5 minutes passed or it's the first verification code - update existing code
             existingCode.Code = verificationCode;
-            existingCode.CreatedAt = DateTime.UtcNow;
+            existingCode.CreatedAt = DateTime.Now;
             existingCode.ExpiresAt = expiresAt;
             existingCode.IsUsed = false;
         }
@@ -311,7 +311,7 @@ public class EmailVerificationService : IEmailVerificationService
             {
                 Email = email,
                 Code = verificationCode,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.Now,
                 ExpiresAt = expiresAt,
                 IsUsed = false
             });
@@ -339,7 +339,7 @@ public class EmailVerificationService : IEmailVerificationService
             }
             
             // Check if code has expired
-            if (verificationCode.ExpiresAt < DateTime.UtcNow)
+            if (verificationCode.ExpiresAt < DateTime.Now)
             {
                 return (false, "Mã xác nhận đã hết hạn", null);
             }
@@ -448,7 +448,7 @@ public class EmailVerificationService : IEmailVerificationService
             
             // Update the user's password
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(resetPasswordDto.NewPassword);
-            user.LastActive = DateTime.UtcNow;
+            user.LastActive = DateTime.Now;
             
             // Mark the verification code as used
             if (codeObject != null)

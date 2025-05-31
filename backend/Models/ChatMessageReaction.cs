@@ -20,6 +20,6 @@ namespace SocialApp.Models
         [StringLength(50)]
         public string ReactionType { get; set; } = string.Empty; // "like", "love", "laugh", etc.
 
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = DateTime.Now;
     }
 }

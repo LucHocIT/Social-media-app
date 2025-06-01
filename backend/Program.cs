@@ -108,6 +108,7 @@ builder.Services.AddScoped<ICommentReportService, CommentReportService>();
 
 // Chat services
 builder.Services.AddScoped<ISimpleChatService, SimpleChatService>();
+builder.Services.AddScoped<IMessageReactionService, MessageReactionService>();
 
 // User presence service
 builder.Services.AddHostedService<UserPresenceService>();

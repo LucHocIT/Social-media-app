@@ -1,6 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
 using SocialApp.DTOs;
+using SocialApp.Hubs;
+using SocialApp.Models;
 using SocialApp.Services.Chat;
 using System.Security.Claims;
 
@@ -10,13 +14,23 @@ namespace SocialApp.Controllers.Chat;
 [Route("api/simple-chat")]
 [Authorize]
 public class SimpleChatController : ControllerBase
-{
-    private readonly ISimpleChatService _simpleChatService;
+{    private readonly ISimpleChatService _simpleChatService;
+    private readonly IMessageReactionService _messageReactionService;
+    private readonly IHubContext<SimpleChatHub> _hubContext;
+    private readonly SocialMediaDbContext _context;
     private readonly ILogger<SimpleChatController> _logger;
 
-    public SimpleChatController(ISimpleChatService simpleChatService, ILogger<SimpleChatController> logger)
+    public SimpleChatController(
+        ISimpleChatService simpleChatService, 
+        IMessageReactionService messageReactionService, 
+        IHubContext<SimpleChatHub> hubContext,
+        SocialMediaDbContext context,
+        ILogger<SimpleChatController> logger)
     {
         _simpleChatService = simpleChatService;
+        _messageReactionService = messageReactionService;
+        _hubContext = hubContext;
+        _context = context;
         _logger = logger;
     }
 
@@ -297,7 +311,248 @@ public class SimpleChatController : ControllerBase
             _logger.LogError(ex, "Error checking friendship with user {OtherUserId}", otherUserId);
             return StatusCode(500, "Internal server error");
         }
-    }    private int? GetCurrentUserId()
+    }    /// <summary>
+    /// Thêm reaction cho tin nhắn
+    /// </summary>
+    [HttpPost("messages/{messageId}/reactions")]
+    public async Task<IActionResult> AddReaction(int messageId, [FromBody] CreateMessageReactionDto reactionDto)
+    {
+        try
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            // Set the messageId in the DTO
+            reactionDto.MessageId = messageId;
+
+            var result = await _messageReactionService.AddReactionAsync(currentUserId.Value, reactionDto);
+            
+            if (result == null)
+            {
+                return BadRequest(new { message = "Unable to add reaction. Please check if the message exists and you have access to it." });
+            }
+
+            // Get conversation ID for SignalR broadcasting
+            var message = await _context.SimpleMessages
+                .Include(m => m.Conversation)
+                .FirstOrDefaultAsync(m => m.Id == messageId);
+            
+            if (message != null)
+            {
+                // Broadcast reaction added event to conversation members
+                await _hubContext.Clients.Group($"Conversation_{message.ConversationId}")
+                    .SendAsync("ReactionAdded", new
+                    {
+                        MessageId = messageId,
+                        ReactionType = reactionDto.ReactionType,
+                        UserId = currentUserId.Value,
+                        UserName = $"{result.FirstName} {result.LastName}".Trim(),
+                        Username = result.Username,
+                        Timestamp = DateTime.UtcNow
+                    });
+            }
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding reaction to message {MessageId}", messageId);
+            return StatusCode(500, "Internal server error");
+        }
+    }    /// <summary>
+    /// Xóa reaction khỏi tin nhắn
+    /// </summary>
+    [HttpDelete("messages/{messageId}/reactions")]
+    public async Task<IActionResult> RemoveReaction(int messageId)
+    {
+        try
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            // Get the existing reaction and conversation info before removing
+            var existingReaction = await _context.MessageReactions
+                .Include(r => r.Message)
+                .ThenInclude(m => m.Conversation)
+                .FirstOrDefaultAsync(r => r.MessageId == messageId && r.UserId == currentUserId.Value);
+
+            var result = await _messageReactionService.RemoveReactionAsync(currentUserId.Value, messageId);
+            
+            if (!result)
+            {
+                return NotFound(new { message = "Reaction not found or already removed" });
+            }
+
+            // Broadcast reaction removed event to conversation members
+            if (existingReaction != null)
+            {
+                await _hubContext.Clients.Group($"Conversation_{existingReaction.Message.ConversationId}")
+                    .SendAsync("ReactionRemoved", new
+                    {
+                        MessageId = messageId,
+                        ReactionType = existingReaction.ReactionType,
+                        UserId = currentUserId.Value,
+                        Timestamp = DateTime.UtcNow
+                    });
+            }
+
+            return Ok(new { message = "Reaction removed successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error removing reaction from message {MessageId}", messageId);
+            return StatusCode(500, "Internal server error");
+        }
+    }    /// <summary>
+    /// Toggle reaction cho tin nhắn (thêm nếu chưa có, xóa nếu đã có)
+    /// </summary>
+    [HttpPut("messages/{messageId}/reactions/toggle")]
+    public async Task<IActionResult> ToggleReaction(int messageId, [FromBody] CreateMessageReactionDto reactionDto)
+    {
+        try
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            // Set the messageId in the DTO
+            reactionDto.MessageId = messageId;
+
+            // Get existing reaction and message info before toggle
+            var existingReaction = await _context.MessageReactions
+                .FirstOrDefaultAsync(r => r.MessageId == messageId && r.UserId == currentUserId.Value);
+
+            var message = await _context.SimpleMessages
+                .Include(m => m.Conversation)
+                .FirstOrDefaultAsync(m => m.Id == messageId);
+
+            var result = await _messageReactionService.ToggleReactionAsync(currentUserId.Value, reactionDto);
+
+            if (message != null)
+            {
+                // Get user info for broadcasting
+                var user = await _context.Users.FindAsync(currentUserId.Value);                if (result) // Reaction was added
+                {
+                    await _hubContext.Clients.Group($"Conversation_{message.ConversationId}")
+                        .SendAsync("ReactionAdded", new
+                        {
+                            MessageId = messageId,
+                            ReactionType = reactionDto.ReactionType,
+                            UserId = currentUserId.Value,
+                            UserName = user != null ? $"{user.FirstName} {user.LastName}".Trim() : "",
+                            ConversationId = message.ConversationId,
+                            Timestamp = DateTime.UtcNow
+                        });
+                }
+                else // Reaction was removed
+                {
+                    await _hubContext.Clients.Group($"Conversation_{message.ConversationId}")
+                        .SendAsync("ReactionRemoved", new
+                        {
+                            MessageId = messageId,
+                            ReactionType = existingReaction?.ReactionType ?? reactionDto.ReactionType,
+                            UserId = currentUserId.Value,
+                            ConversationId = message.ConversationId,
+                            Timestamp = DateTime.UtcNow
+                        });
+                }
+            }
+
+            return Ok(new { 
+                message = result ? "Reaction added/updated" : "Reaction removed",
+                hasReaction = result
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error toggling reaction for message {MessageId}", messageId);
+            return StatusCode(500, "Internal server error");
+        }
+    }/// <summary>
+    /// Lấy danh sách reactions của tin nhắn
+    /// </summary>
+    [HttpGet("messages/{messageId}/reactions")]
+    public async Task<IActionResult> GetMessageReactions(int messageId)
+    {
+        try
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            var result = await _messageReactionService.GetMessageReactionsAsync(messageId, currentUserId.Value);
+            
+            if (result == null)
+            {
+                return NotFound(new { message = "Message not found or access denied" });
+            }
+
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting reactions for message {MessageId}", messageId);
+            return StatusCode(500, "Internal server error");
+        }
+    }    /// <summary>
+    /// Lấy danh sách reactions chi tiết theo messageId
+    /// </summary>
+    [HttpGet("messages/{messageId}/reactions/details")]
+    public async Task<IActionResult> GetMessageReactionDetails(int messageId)
+    {
+        try
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            var reactions = await _messageReactionService.GetReactionsByMessageIdAsync(messageId);
+            return Ok(reactions);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting reaction details for message {MessageId}", messageId);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Lấy danh sách reactions theo loại
+    /// </summary>
+    [HttpGet("messages/{messageId}/reactions/{reactionType}")]
+    public async Task<IActionResult> GetMessageReactionsByType(int messageId, string reactionType)
+    {
+        try
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            var reactions = await _messageReactionService.GetReactionsByTypeAsync(messageId, reactionType);
+            return Ok(reactions);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting reactions by type {ReactionType} for message {MessageId}", reactionType, messageId);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    private int? GetCurrentUserId()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
         if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))

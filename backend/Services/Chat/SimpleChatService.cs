@@ -155,13 +155,13 @@ public class SimpleChatService : ISimpleChatService
         if (conversation == null)
         {
             throw new UnauthorizedAccessException("Access denied to conversation");
-        }
-
-        // Lấy tin nhắn với phân trang (mới nhất trước)
+        }        // Lấy tin nhắn với phân trang (mới nhất trước)
         var query = _context.SimpleMessages
             .Where(m => m.ConversationId == conversationId && !m.IsDeleted)
             .Include(m => m.Sender)
             .Include(m => m.ReplyToMessage)
+            .Include(m => m.Reactions)
+                .ThenInclude(r => r.User)
             .OrderByDescending(m => m.SentAt);
 
         var totalCount = await query.CountAsync();
@@ -187,7 +187,13 @@ public class SimpleChatService : ISimpleChatService
             MediaMimeType = m.MediaMimeType,
             MediaFilename = m.MediaFilename,
             MediaFileSize = m.MediaFileSize,
-            MessageType = !string.IsNullOrEmpty(m.MediaUrl) ? m.MediaType ?? "File" : "Text"
+            MessageType = !string.IsNullOrEmpty(m.MediaUrl) ? m.MediaType ?? "File" : "Text",
+            // Reaction fields
+            ReactionCounts = m.Reactions.GroupBy(r => r.ReactionType)
+                .ToDictionary(g => g.Key, g => g.Count()),
+            HasReactedByCurrentUser = m.Reactions.Any(r => r.UserId == currentUserId),
+            CurrentUserReactionType = m.Reactions.FirstOrDefault(r => r.UserId == currentUserId)?.ReactionType,
+            TotalReactions = m.Reactions.Count
         }).ToList();
 
         // Debug logging
@@ -269,9 +275,7 @@ public class SimpleChatService : ISimpleChatService
         _logger.LogInformation("New message from {SenderName} (ID: {SenderId}): Avatar = {Avatar}", 
             $"{message.Sender.FirstName} {message.Sender.LastName}".Trim(), 
             message.Sender.Id, 
-            message.Sender.ProfilePictureUrl ?? "NULL");
-
-        var messageDto = new SimpleMessageDto
+            message.Sender.ProfilePictureUrl ?? "NULL");        var messageDto = new SimpleMessageDto
         {
             Id = message.Id,
             SenderId = message.SenderId,
@@ -289,8 +293,13 @@ public class SimpleChatService : ISimpleChatService
             MediaMimeType = message.MediaMimeType,
             MediaFilename = message.MediaFilename,
             MediaFileSize = message.MediaFileSize,
-            MessageType = !string.IsNullOrEmpty(message.MediaUrl) ? message.MediaType ?? "File" : "Text"
-        };        // Send SignalR notifications only when explicitly requested (e.g., from REST API)
+            MessageType = !string.IsNullOrEmpty(message.MediaUrl) ? message.MediaType ?? "File" : "Text",
+            // Reaction fields (empty for new message)
+            ReactionCounts = new Dictionary<string, int>(),
+            HasReactedByCurrentUser = false,
+            CurrentUserReactionType = null,
+            TotalReactions = 0
+        };// Send SignalR notifications only when explicitly requested (e.g., from REST API)
         if (sendSignalR)
         {
             try

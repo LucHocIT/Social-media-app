@@ -250,6 +250,55 @@ public class SimpleChatHub : Hub
         }
     }
 
+    /// <summary>
+    /// Broadcast message reaction to conversation members
+    /// </summary>
+    public async Task BroadcastReactionAdded(int conversationId, int messageId, string reactionType, int userId, string userName)
+    {
+        try
+        {
+            await Clients.Group($"Conversation_{conversationId}")
+                .SendAsync("ReactionAdded", new 
+                { 
+                    MessageId = messageId,
+                    ReactionType = reactionType,
+                    UserId = userId,
+                    UserName = userName,
+                    Timestamp = DateTime.Now
+                });
+            
+            _logger.LogInformation($"Broadcasted reaction added for message {messageId} in conversation {conversationId}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Error broadcasting reaction added for message {messageId}");
+        }
+    }
+
+    /// <summary>
+    /// Broadcast message reaction removal to conversation members
+    /// </summary>
+    public async Task BroadcastReactionRemoved(int conversationId, int messageId, string reactionType, int userId)
+    {
+        try
+        {
+            await Clients.Group($"Conversation_{conversationId}")
+                .SendAsync("ReactionRemoved", new 
+                { 
+                    MessageId = messageId,
+                    ReactionType = reactionType,
+                    UserId = userId,
+                    Timestamp = DateTime.Now
+                });
+            
+            _logger.LogInformation($"Broadcasted reaction removed for message {messageId} in conversation {conversationId}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Error broadcasting reaction removed for message {messageId}");
+        }
+    }
+
     private int? GetUserId()
     {
         var userIdClaim = Context.User?.FindFirst(ClaimTypes.NameIdentifier);

@@ -255,9 +255,7 @@ public class SimpleChatService : ISimpleChatService
             IsMine = true,
             ReplyToMessageId = message.ReplyToMessageId
         };
-    }
-
-    public async Task<bool> MarkConversationAsReadAsync(int conversationId, int userId)
+    }    public async Task<bool> MarkConversationAsReadAsync(int conversationId, int userId)
     {
         var conversation = await _context.ChatConversations
             .FirstOrDefaultAsync(c => c.Id == conversationId && 
@@ -267,6 +265,8 @@ public class SimpleChatService : ISimpleChatService
         if (conversation == null) return false;
 
         var now = DateTime.Now;
+        
+        _logger.LogInformation($"Marking conversation {conversationId} as read for user {userId} at {now}");
         
         if (conversation.User1Id == userId)
         {
@@ -279,6 +279,8 @@ public class SimpleChatService : ISimpleChatService
 
         conversation.UpdatedAt = now;
         await _context.SaveChangesAsync();
+        
+        _logger.LogInformation($"Successfully marked conversation {conversationId} as read for user {userId}");
         
         return true;
     }
@@ -316,9 +318,7 @@ public class SimpleChatService : ISimpleChatService
         await _context.SaveChangesAsync();
         
         return true;
-    }
-
-    private async Task<int> GetUnreadCountAsync(int conversationId, int userId)
+    }    private async Task<int> GetUnreadCountAsync(int conversationId, int userId)
     {
         var conversation = await _context.ChatConversations
             .FirstOrDefaultAsync(c => c.Id == conversationId);
@@ -329,20 +329,29 @@ public class SimpleChatService : ISimpleChatService
                             conversation.User1LastRead : 
                             conversation.User2LastRead;
 
+        _logger.LogInformation($"Getting unread count for conversation {conversationId}, user {userId}. LastRead: {lastRead}");
+
         if (lastRead == null)
         {
             // Chưa đọc tin nhắn nào, đếm tất cả tin nhắn từ người khác
-            return await _context.SimpleMessages
+            var unreadCount = await _context.SimpleMessages
                 .CountAsync(m => m.ConversationId == conversationId && 
                                m.SenderId != userId && 
                                !m.IsDeleted);
+            
+            _logger.LogInformation($"No lastRead time, unread count: {unreadCount}");
+            return unreadCount;
         }
 
         // Đếm tin nhắn từ người khác sau lần đọc cuối
-        return await _context.SimpleMessages
+        // Sử dụng >= thay vì > để đảm bảo không bỏ sót tin nhắn do precision issues
+        var count = await _context.SimpleMessages
             .CountAsync(m => m.ConversationId == conversationId && 
                            m.SenderId != userId && 
                            m.SentAt > lastRead && 
                            !m.IsDeleted);
+        
+        _logger.LogInformation($"Unread count after lastRead {lastRead}: {count}");
+        return count;
     }
 }

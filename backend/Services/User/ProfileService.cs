@@ -176,6 +176,43 @@ public partial class ProfileService : IProfileService
             _logger.LogError(ex, "Error searching for profiles with search term {SearchTerm}", searchTerm);
             return Enumerable.Empty<ProfileDTO>();
         }
+    }    // Tìm kiếm chỉ những người dùng là bạn bè (cho chat)
+    public async Task<IEnumerable<ProfileDTO>> SearchFriendsAsync(string searchTerm, int currentUserId, int pageNumber = 1, int pageSize = 10)
+    {
+        try
+        {
+            // Tìm danh sách bạn bè (follow 2 chiều)
+            var friendsQuery = from user in _context.Users
+                              where !user.IsDeleted &&
+                                    user.Id != currentUserId &&
+                                    (user.Username.Contains(searchTerm) ||
+                                     (user.FirstName != null && user.FirstName.Contains(searchTerm)) ||
+                                     (user.LastName != null && user.LastName.Contains(searchTerm))) &&
+                                    // Kiểm tra follow 2 chiều
+                                    _context.UserFollowers.Any(f1 => f1.FollowerId == currentUserId && f1.FollowingId == user.Id) &&
+                                    _context.UserFollowers.Any(f2 => f2.FollowerId == user.Id && f2.FollowingId == currentUserId)
+                              select user;
+
+            var users = await friendsQuery
+                .OrderBy(u => u.Username)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync();
+
+            var profileDtos = new List<ProfileDTO>();
+
+            foreach (var user in users)
+            {
+                profileDtos.Add(await CreateProfileDTOAsync(user));
+            }
+
+            return profileDtos;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error searching for friends with search term {SearchTerm} for user {UserId}", searchTerm, currentUserId);
+            return Enumerable.Empty<ProfileDTO>();
+        }
     }
 
     public async Task<bool> IsUsernameUniqueAsync(string username, int? currentUserId = null)

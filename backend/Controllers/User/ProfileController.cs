@@ -321,6 +321,36 @@ public class ProfileController : ControllerBase
             _logger.LogError(ex, "Error searching profiles with term {SearchTerm}", searchDto.SearchTerm);
             return StatusCode(500, new { message = "An error occurred while searching for profiles" });
         }
+    }    [HttpGet("search/friends")]
+    [Authorize]
+    public async Task<ActionResult<IEnumerable<ProfileDTO>>> SearchFriends([FromQuery] ProfileSearchDTO searchDto)
+    {
+        try
+        {
+            int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+            if (currentUserId == 0)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ModelState);
+            }
+
+            var friends = await _profileService.SearchFriendsAsync(
+                searchDto.SearchTerm,
+                currentUserId,
+                searchDto.PageNumber,
+                searchDto.PageSize);
+
+            return Ok(friends);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error searching friends with term {SearchTerm}", searchDto.SearchTerm);
+            return StatusCode(500, new { message = "An error occurred while searching for friends" });
+        }
     }
 
     [HttpGet("check-username")]

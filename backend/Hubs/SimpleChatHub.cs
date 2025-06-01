@@ -148,26 +148,30 @@ public class SimpleChatHub : Hub
             };
 
             // Gửi tin nhắn qua service
-            var message = await _simpleChatService.SendMessageAsync(conversationId, userId.Value, messageDto);
-
-            // Gửi tin nhắn đến tất cả members trong conversation
+            var message = await _simpleChatService.SendMessageAsync(conversationId, userId.Value, messageDto);            // Gửi tin nhắn đến tất cả members trong conversation
             await Clients.Group($"Conversation_{conversationId}")
                 .SendAsync("ReceiveMessage", message);
 
-            // Gửi notification đến user còn lại (nếu họ không online trong conversation)
+            // Send conversation update to other participants (not in current conversation view)
+            // This updates the conversation list without showing toast notifications
             var conversation = await _context.ChatConversations
+                .Include(c => c.User1)
+                .Include(c => c.User2)
                 .FirstOrDefaultAsync(c => c.Id == conversationId);
-            
+
             if (conversation != null)
             {
-                var otherUserId = conversation.User1Id == userId.Value ? 
-                                 conversation.User2Id : conversation.User1Id;
+                var otherUserId = conversation.User1Id == userId.Value ? conversation.User2Id : conversation.User1Id;
                 
+                // Send conversation list update to the other user
                 await Clients.Group($"User_{otherUserId}")
-                    .SendAsync("NewMessage", new 
-                    { 
-                        ConversationId = conversationId, 
-                        Message = message,
+                    .SendAsync("ConversationUpdated", new
+                    {
+                        ConversationId = conversationId,
+                        LastMessage = message.Content,
+                        LastMessageTime = message.SentAt,
+                        SenderId = message.SenderId,
+                        SenderName = message.SenderName,
                         UnreadCount = await GetUnreadCountForUser(conversationId, otherUserId)
                     });
             }

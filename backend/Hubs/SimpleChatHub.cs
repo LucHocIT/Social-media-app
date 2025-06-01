@@ -145,10 +145,8 @@ public class SimpleChatHub : Hub
             {
                 Content = content.Trim(),
                 ReplyToMessageId = replyToMessageId
-            };
-
-            // Gửi tin nhắn qua service
-            var message = await _simpleChatService.SendMessageAsync(conversationId, userId.Value, messageDto);            // Gửi tin nhắn đến tất cả members trong conversation
+            };            // Gửi tin nhắn qua service (không gửi SignalR vì Hub sẽ tự gửi)
+            var message = await _simpleChatService.SendMessageAsync(conversationId, userId.Value, messageDto, sendSignalR: false);// Gửi tin nhắn đến tất cả members trong conversation
             await Clients.Group($"Conversation_{conversationId}")
                 .SendAsync("ReceiveMessage", message);
 

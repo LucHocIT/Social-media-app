@@ -14,11 +14,21 @@ public class SimpleMessage
     
     public int SenderId { get; set; }
     
-    [Required]
     [StringLength(1000)] // Giới hạn độ dài tin nhắn
-    public string Content { get; set; } = string.Empty;
+    public string? Content { get; set; } = string.Empty;
+    
+    // Media fields for chat messages
+    public string? MediaUrl { get; set; }
+    public string? MediaType { get; set; } // "image", "video", "file"
+    public string? MediaPublicId { get; set; }
+    public string? MediaMimeType { get; set; }
+    public string? MediaFilename { get; set; }
+    public long? MediaFileSize { get; set; }
     
     public DateTime SentAt { get; set; } = DateTime.Now;
+    
+    // Message type
+    public SimpleMessageType MessageType { get; set; } = SimpleMessageType.Text;
     
     // Chỉ lưu thông tin cơ bản, không lưu reactions, replies phức tạp
     public bool IsDeleted { get; set; } = false;
@@ -41,5 +51,7 @@ public class SimpleMessage
 public enum SimpleMessageType
 {
     Text = 1,
-    Image = 2
+    Image = 2,
+    Video = 3,
+    File = 4
 }

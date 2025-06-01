@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.SignalR;
 using SocialApp.DTOs;
 using SocialApp.Models;
+using SocialApp.Services.Utils;
+using SocialApp.Hubs;
 
 namespace SocialApp.Services.Chat;
 
@@ -8,11 +11,19 @@ public class SimpleChatService : ISimpleChatService
 {
     private readonly SocialMediaDbContext _context;
     private readonly ILogger<SimpleChatService> _logger;
+    private readonly ICloudinaryService _cloudinaryService;
+    private readonly IHubContext<SimpleChatHub> _hubContext;
 
-    public SimpleChatService(SocialMediaDbContext context, ILogger<SimpleChatService> logger)
+    public SimpleChatService(
+        SocialMediaDbContext context, 
+        ILogger<SimpleChatService> logger, 
+        ICloudinaryService cloudinaryService,
+        IHubContext<SimpleChatHub> hubContext)
     {
         _context = context;
         _logger = logger;
+        _cloudinaryService = cloudinaryService;
+        _hubContext = hubContext;
     }
 
     public async Task<ConversationsListDto> GetUserConversationsAsync(int userId)
@@ -168,7 +179,15 @@ public class SimpleChatService : ISimpleChatService
             SentAt = m.SentAt,
             IsMine = m.SenderId == currentUserId,
             ReplyToMessageId = m.ReplyToMessageId,
-            ReplyToContent = m.ReplyToMessage?.Content
+            ReplyToContent = m.ReplyToMessage?.Content,
+            // Media fields
+            MediaUrl = m.MediaUrl,
+            MediaType = m.MediaType,
+            MediaPublicId = m.MediaPublicId,
+            MediaMimeType = m.MediaMimeType,
+            MediaFilename = m.MediaFilename,
+            MediaFileSize = m.MediaFileSize,
+            MessageType = !string.IsNullOrEmpty(m.MediaUrl) ? m.MediaType ?? "File" : "Text"
         }).ToList();
 
         // Debug logging
@@ -189,9 +208,7 @@ public class SimpleChatService : ISimpleChatService
             PageSize = pageSize,
             HasMore = page * pageSize < totalCount
         };
-    }
-
-    public async Task<SimpleMessageDto> SendMessageAsync(int conversationId, int senderId, SendSimpleMessageDto messageDto)
+    }    public async Task<SimpleMessageDto> SendMessageAsync(int conversationId, int senderId, SendSimpleMessageDto messageRequest, bool sendSignalR = true)
     {
         // Kiểm tra quyền truy cập
         var conversation = await _context.ChatConversations
@@ -204,24 +221,32 @@ public class SimpleChatService : ISimpleChatService
         if (conversation == null)
         {
             throw new UnauthorizedAccessException("Access denied to conversation");
-        }
-
-        // Tạo tin nhắn mới
+        }        // Tạo tin nhắn mới
         var message = new SimpleMessage
         {
             ConversationId = conversationId,
             SenderId = senderId,
-            Content = messageDto.Content.Trim(),
-            ReplyToMessageId = messageDto.ReplyToMessageId,
-            SentAt = DateTime.Now
+            Content = messageRequest.Content?.Trim(),
+            ReplyToMessageId = messageRequest.ReplyToMessageId,
+            SentAt = DateTime.Now,
+            // Media fields
+            MediaUrl = messageRequest.MediaUrl,
+            MediaType = messageRequest.MediaType,
+            MediaPublicId = messageRequest.MediaPublicId,
+            MediaMimeType = messageRequest.MediaMimeType,
+            MediaFilename = messageRequest.MediaFilename,
+            MediaFileSize = messageRequest.MediaFileSize
         };
 
         _context.SimpleMessages.Add(message);
 
         // Cập nhật thông tin cuộc trò chuyện
-        conversation.LastMessage = message.Content.Length > 100 ? 
-                                  message.Content.Substring(0, 100) + "..." : 
-                                  message.Content;
+        var displayMessage = !string.IsNullOrEmpty(message.Content) ? message.Content :
+                           !string.IsNullOrEmpty(message.MediaFilename) ? $"📁 {message.MediaFilename}" : "📁 File";
+        
+        conversation.LastMessage = displayMessage.Length > 100 ? 
+                                  displayMessage.Substring(0, 100) + "..." :
+                                  displayMessage;
         conversation.LastMessageTime = message.SentAt;
         conversation.LastMessageSenderId = senderId;
         conversation.MessageCount++;
@@ -229,7 +254,7 @@ public class SimpleChatService : ISimpleChatService
 
         // Đảm bảo cả 2 user đều có thể thấy cuộc trò chuyện
         conversation.IsUser1Active = true;
-        conversation.IsUser2Active = true;        await _context.SaveChangesAsync();
+        conversation.IsUser2Active = true;await _context.SaveChangesAsync();
 
         // Load sender info và reply message info
         await _context.Entry(message)
@@ -242,15 +267,13 @@ public class SimpleChatService : ISimpleChatService
             await _context.Entry(message)
                 .Reference(m => m.ReplyToMessage)
                 .LoadAsync();
-        }
-
-        // Debug logging
+        }        // Debug logging
         _logger.LogInformation("New message from {SenderName} (ID: {SenderId}): Avatar = {Avatar}", 
             $"{message.Sender.FirstName} {message.Sender.LastName}".Trim(), 
             message.Sender.Id, 
             message.Sender.ProfilePictureUrl ?? "NULL");
 
-        return new SimpleMessageDto
+        var messageDto = new SimpleMessageDto
         {
             Id = message.Id,
             SenderId = message.SenderId,
@@ -260,8 +283,44 @@ public class SimpleChatService : ISimpleChatService
             SentAt = message.SentAt,
             IsMine = true,
             ReplyToMessageId = message.ReplyToMessageId,
-            ReplyToContent = message.ReplyToMessage?.Content
-        };
+            ReplyToContent = message.ReplyToMessage?.Content,
+            // Media fields
+            MediaUrl = message.MediaUrl,
+            MediaType = message.MediaType,
+            MediaPublicId = message.MediaPublicId,
+            MediaMimeType = message.MediaMimeType,
+            MediaFilename = message.MediaFilename,
+            MediaFileSize = message.MediaFileSize,
+            MessageType = !string.IsNullOrEmpty(message.MediaUrl) ? message.MediaType ?? "File" : "Text"
+        };        // Send SignalR notifications only when explicitly requested (e.g., from REST API)
+        if (sendSignalR)
+        {
+            try
+            {
+                await _hubContext.Clients.Group($"Conversation_{conversationId}")
+                    .SendAsync("ReceiveMessage", messageDto);
+
+                // Send conversation update to other participants
+                var otherUserId = conversation.User1Id == senderId ? conversation.User2Id : conversation.User1Id;
+                await _hubContext.Clients.Group($"User_{otherUserId}")
+                    .SendAsync("ConversationUpdated", new
+                    {
+                        ConversationId = conversationId,
+                        LastMessage = !string.IsNullOrEmpty(messageDto.Content) ? messageDto.Content : 
+                                      !string.IsNullOrEmpty(messageDto.MediaFilename) ? $"📁 {messageDto.MediaFilename}" : "📁 File",
+                        LastMessageTime = messageDto.SentAt,
+                        SenderId = messageDto.SenderId,
+                        SenderName = messageDto.SenderName,
+                        UnreadCount = await GetUnreadCountForUser(conversationId, otherUserId)
+                    });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending SignalR notifications for message {MessageId}", message.Id);
+            }
+        }
+
+        return messageDto;
     }    public async Task<bool> MarkConversationAsReadAsync(int conversationId, int userId)
     {
         var conversation = await _context.ChatConversations
@@ -348,9 +407,7 @@ public class SimpleChatService : ISimpleChatService
             
             _logger.LogInformation($"No lastRead time, unread count: {unreadCount}");
             return unreadCount;
-        }
-
-        // Đếm tin nhắn từ người khác sau lần đọc cuối
+        }        // Đếm tin nhắn từ người khác sau lần đọc cuối
         // Sử dụng >= thay vì > để đảm bảo không bỏ sót tin nhắn do precision issues
         var count = await _context.SimpleMessages
             .CountAsync(m => m.ConversationId == conversationId && 
@@ -360,5 +417,78 @@ public class SimpleChatService : ISimpleChatService
         
         _logger.LogInformation($"Unread count after lastRead {lastRead}: {count}");
         return count;
+    }
+
+    private async Task<int> GetUnreadCountForUser(int conversationId, int userId)
+    {
+        return await GetUnreadCountAsync(conversationId, userId);
+    }
+
+    public async Task<UploadChatMediaResult> UploadChatMediaAsync(int userId, IFormFile mediaFile, string mediaType)
+    {
+        try
+        {
+            if (mediaFile == null || mediaFile.Length == 0)
+            {
+                return new UploadChatMediaResult
+                {
+                    Success = false,
+                    Message = "No file provided"
+                };
+            }
+
+            using var stream = mediaFile.OpenReadStream();
+            var fileName = $"chat_{mediaType}_{userId}_{Guid.NewGuid()}";
+            CloudinaryUploadResult? uploadResult = null;
+
+            switch (mediaType.ToLower())
+            {
+                case "image":
+                    uploadResult = await _cloudinaryService.UploadImageAsync(stream, fileName);
+                    break;
+                case "video":
+                    uploadResult = await _cloudinaryService.UploadVideoAsync(stream, fileName);
+                    break;
+                case "file":
+                    uploadResult = await _cloudinaryService.UploadFileAsync(stream, fileName);
+                    break;
+                default:
+                    return new UploadChatMediaResult
+                    {
+                        Success = false,
+                        Message = "Invalid media type"
+                    };
+            }
+
+            if (uploadResult == null)
+            {
+                return new UploadChatMediaResult
+                {
+                    Success = false,
+                    Message = "Failed to upload to cloud storage"
+                };
+            }
+
+            return new UploadChatMediaResult
+            {
+                Success = true,
+                MediaUrl = uploadResult.Url,
+                MediaType = mediaType,
+                PublicId = uploadResult.PublicId,
+                MimeType = mediaFile.ContentType,
+                Filename = mediaFile.FileName,
+                FileSize = mediaFile.Length,
+                Message = "Media uploaded successfully"
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading chat media for user {UserId}", userId);
+            return new UploadChatMediaResult
+            {
+                Success = false,
+                Message = "An error occurred while uploading media"
+            };
+        }
     }
 }

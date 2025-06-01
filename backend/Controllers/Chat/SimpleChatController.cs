@@ -108,9 +108,7 @@ public class SimpleChatController : ControllerBase
             _logger.LogError(ex, "Error getting messages for conversation {ConversationId}", conversationId);
             return StatusCode(500, "Internal server error");
         }
-    }
-
-    /// <summary>
+    }    /// <summary>
     /// Gửi tin nhắn
     /// </summary>
     [HttpPost("conversations/{conversationId}/messages")]
@@ -124,12 +122,16 @@ public class SimpleChatController : ControllerBase
                 return Unauthorized("User not authenticated");
             }
 
-            if (string.IsNullOrWhiteSpace(messageDto.Content))
+            // Validate: Either content or media must be provided
+            bool hasContent = !string.IsNullOrWhiteSpace(messageDto.Content);
+            bool hasMedia = !string.IsNullOrEmpty(messageDto.MediaUrl);
+            
+            if (!hasContent && !hasMedia)
             {
-                return BadRequest("Message content cannot be empty");
+                return BadRequest("Either message content or media must be provided");
             }
 
-            if (messageDto.Content.Length > 1000)
+            if (hasContent && messageDto.Content!.Length > 1000)
             {
                 return BadRequest("Message content too long (max 1000 characters)");
             }
@@ -144,6 +146,71 @@ public class SimpleChatController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error sending message to conversation {ConversationId}", conversationId);
+            return StatusCode(500, "Internal server error");
+        }
+    }    /// <summary>
+    /// Upload media for chat message
+    /// </summary>
+    /// <param name="uploadDto">The upload data containing media file and type</param>
+    /// <returns>Upload result with media URL and metadata</returns>
+    [HttpPost("upload-media")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UploadChatMedia([FromForm] UploadChatMediaDto uploadDto)    {
+        try
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            if (uploadDto?.MediaFile == null || uploadDto.MediaFile.Length == 0)
+            {
+                return BadRequest("No file uploaded");
+            }
+
+            // Validate media type
+            if (!IsValidMediaType(uploadDto.MediaType))
+            {
+                return BadRequest("Invalid media type. Allowed values are 'image', 'video', and 'file'.");
+            }
+
+            // Validate file size
+            long maxSize = GetMaxFileSizeForMediaType(uploadDto.MediaType);
+            if (uploadDto.MediaFile.Length > maxSize)
+            {
+                return BadRequest($"File size exceeds the maximum allowed ({maxSize / (1024 * 1024)}MB).");
+            }
+
+            // Validate MIME type
+            var allowedTypes = GetAllowedMimeTypes(uploadDto.MediaType);
+            if (!allowedTypes.Contains(uploadDto.MediaFile.ContentType.ToLower()))
+            {
+                return BadRequest($"Invalid file type for {uploadDto.MediaType}. Allowed types: {string.Join(", ", allowedTypes)}");
+            }
+
+            var result = await _simpleChatService.UploadChatMediaAsync(currentUserId.Value, uploadDto.MediaFile, uploadDto.MediaType);
+            
+            if (!result.Success)
+            {
+                return BadRequest(new { message = result.Message });
+            }
+
+            return Ok(new
+            {
+                success = true,
+                mediaUrl = result.MediaUrl,
+                mediaType = result.MediaType,
+                publicId = result.PublicId,
+                mimeType = result.MimeType,
+                filename = result.Filename,
+                fileSize = result.FileSize,
+                message = "Media uploaded successfully"
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error uploading chat media");
             return StatusCode(500, "Internal server error");
         }
     }
@@ -230,9 +297,7 @@ public class SimpleChatController : ControllerBase
             _logger.LogError(ex, "Error checking friendship with user {OtherUserId}", otherUserId);
             return StatusCode(500, "Internal server error");
         }
-    }
-
-    private int? GetCurrentUserId()
+    }    private int? GetCurrentUserId()
     {
         var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier);
         if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
@@ -240,5 +305,56 @@ public class SimpleChatController : ControllerBase
             return userId;
         }
         return null;
+    }
+
+    private bool IsValidMediaType(string mediaType)
+    {
+        if (string.IsNullOrEmpty(mediaType))
+            return false;
+            
+        var validTypes = new[] { "image", "video", "file" };
+        return validTypes.Contains(mediaType.ToLower());
+    }
+    
+    private string[] GetAllowedMimeTypes(string mediaType)
+    {
+        switch (mediaType.ToLower())
+        {
+            case "image":
+                return new[] { 
+                    "image/jpeg", "image/png", "image/gif", "image/webp", 
+                    "image/svg+xml", "image/bmp", "image/tiff" 
+                };
+            case "video":
+                return new[] { 
+                    "video/mp4", "video/mpeg", "video/quicktime", "video/x-msvideo", 
+                    "video/x-ms-wmv", "video/webm", "video/x-flv" 
+                };
+            case "file":
+                return new[] { 
+                    "application/pdf", "application/msword", "application/vnd.ms-excel",
+                    "application/vnd.ms-powerpoint", "text/plain", "application/zip",
+                    "application/x-rar-compressed", "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                };
+            default:
+                return new string[0];
+        }
+    }
+    
+    private long GetMaxFileSizeForMediaType(string mediaType)
+    {
+        switch (mediaType.ToLower())
+        {
+            case "image":
+                return 10 * 1024 * 1024; // 10 MB for images
+            case "video":
+                return 100 * 1024 * 1024; // 100 MB for videos
+            case "file":
+                return 25 * 1024 * 1024; // 25 MB for other files
+            default:
+                return 5 * 1024 * 1024; // 5 MB default
+        }
     }
 }

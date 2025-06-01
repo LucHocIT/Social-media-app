@@ -16,6 +16,7 @@ using SocialApp.Services.Post;
 using SocialApp.Services.Comment;
 using SocialApp.Services.Chat;
 using SocialApp.Hubs;
+using SocialApp.Filters;
 using Microsoft.OpenApi.Models;
 
 // Load .env file if it exists (this should be before creating the builder)
@@ -65,11 +66,11 @@ builder.Services.AddSwaggerGen(c =>
                 }
             },
             Array.Empty<string>()
-        }
-    });
-
-    // Configure Swagger to handle form file uploads properly
+        }    });    // Configure Swagger to handle form file uploads properly
     c.CustomSchemaIds(type => type.FullName);
+    
+    // Add support for file uploads in Swagger
+    c.OperationFilter<FileUploadOperationFilter>();
 });
 
 // CORS policy

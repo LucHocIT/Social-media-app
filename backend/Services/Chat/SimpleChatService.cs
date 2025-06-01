@@ -3,27 +3,30 @@ using Microsoft.AspNetCore.SignalR;
 using SocialApp.DTOs;
 using SocialApp.Models;
 using SocialApp.Services.Utils;
+using SocialApp.Services.User;
 using SocialApp.Hubs;
 
 namespace SocialApp.Services.Chat;
 
 public class SimpleChatService : ISimpleChatService
-{
-    private readonly SocialMediaDbContext _context;
+{    private readonly SocialMediaDbContext _context;
     private readonly ILogger<SimpleChatService> _logger;
     private readonly ICloudinaryService _cloudinaryService;
     private readonly IHubContext<SimpleChatHub> _hubContext;
+    private readonly IUserBlockService _userBlockService;
 
     public SimpleChatService(
         SocialMediaDbContext context, 
         ILogger<SimpleChatService> logger, 
         ICloudinaryService cloudinaryService,
-        IHubContext<SimpleChatHub> hubContext)
+        IHubContext<SimpleChatHub> hubContext,
+        IUserBlockService userBlockService)
     {
         _context = context;
         _logger = logger;
         _cloudinaryService = cloudinaryService;
         _hubContext = hubContext;
+        _userBlockService = userBlockService;
     }
 
     public async Task<ConversationsListDto> GetUserConversationsAsync(int userId)
@@ -60,10 +63,17 @@ public class SimpleChatService : ISimpleChatService
             Conversations = conversationDtos,
             TotalCount = conversationDtos.Count
         };
-    }
-
-    public async Task<SimpleConversationDto?> GetOrCreateConversationAsync(int currentUserId, int otherUserId)
+    }    public async Task<SimpleConversationDto?> GetOrCreateConversationAsync(int currentUserId, int otherUserId)
     {
+        // Check for block relationships first
+        var areBlocking = await _userBlockService.AreUsersBlockingEachOtherAsync(currentUserId, otherUserId);
+        if (areBlocking)
+        {
+            _logger.LogWarning("Cannot create conversation between users {CurrentUserId} and {OtherUserId} - users are blocking each other", 
+                currentUserId, otherUserId);
+            return null; // Cannot chat with blocked users
+        }
+
         // Kiểm tra quan hệ bạn bè
         if (!await AreFriendsAsync(currentUserId, otherUserId))
         {
@@ -227,6 +237,21 @@ public class SimpleChatService : ISimpleChatService
         if (conversation == null)
         {
             throw new UnauthorizedAccessException("Access denied to conversation");
+        }
+
+        // Check for block relationships before sending message
+        var otherUserId = conversation.User1Id == senderId ? conversation.User2Id : conversation.User1Id;
+        var areBlocking = await _userBlockService.AreUsersBlockingEachOtherAsync(senderId, otherUserId);
+        if (areBlocking)
+        {
+            _logger.LogWarning("Message sending blocked: users {SenderId} and {OtherUserId} are blocking each other", 
+                senderId, otherUserId);
+            throw new UnauthorizedAccessException("Cannot send message to blocked user");
+        }
+
+        if (conversation == null)
+        {
+            throw new UnauthorizedAccessException("Access denied to conversation");
         }        // Tạo tin nhắn mới
         var message = new SimpleMessage
         {
@@ -303,13 +328,12 @@ public class SimpleChatService : ISimpleChatService
         if (sendSignalR)
         {
             try
-            {
-                await _hubContext.Clients.Group($"Conversation_{conversationId}")
+            {                await _hubContext.Clients.Group($"Conversation_{conversationId}")
                     .SendAsync("ReceiveMessage", messageDto);
 
                 // Send conversation update to other participants
-                var otherUserId = conversation.User1Id == senderId ? conversation.User2Id : conversation.User1Id;
-                await _hubContext.Clients.Group($"User_{otherUserId}")
+                var receiverId = conversation.User1Id == senderId ? conversation.User2Id : conversation.User1Id;
+                await _hubContext.Clients.Group($"User_{receiverId}")
                     .SendAsync("ConversationUpdated", new
                     {
                         ConversationId = conversationId,
@@ -318,7 +342,7 @@ public class SimpleChatService : ISimpleChatService
                         LastMessageTime = messageDto.SentAt,
                         SenderId = messageDto.SenderId,
                         SenderName = messageDto.SenderName,
-                        UnreadCount = await GetUnreadCountForUser(conversationId, otherUserId)
+                        UnreadCount = await GetUnreadCountForUser(conversationId, receiverId)
                     });
             }
             catch (Exception ex)

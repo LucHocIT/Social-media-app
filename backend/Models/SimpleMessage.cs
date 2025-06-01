@@ -41,10 +41,11 @@ public class SimpleMessage
     public virtual ChatConversation Conversation { get; set; } = null!;
 
     [ForeignKey("SenderId")]
-    public virtual User Sender { get; set; } = null!;
-
-    [ForeignKey("ReplyToMessageId")]
+    public virtual User Sender { get; set; } = null!;    [ForeignKey("ReplyToMessageId")]
     public virtual SimpleMessage? ReplyToMessage { get; set; }
+
+    // Collection for message reactions
+    public virtual ICollection<MessageReaction> Reactions { get; set; } = new List<MessageReaction>();
 }
 
 // Enum đơn giản cho loại tin nhắn

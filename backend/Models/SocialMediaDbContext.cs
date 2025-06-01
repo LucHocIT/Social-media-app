@@ -22,11 +22,10 @@ public partial class SocialMediaDbContext : DbContext
 
     public virtual DbSet<User> Users { get; set; }
 
-    public virtual DbSet<UserFollower> UserFollowers { get; set; }    public virtual DbSet<EmailVerificationCode> EmailVerificationCodes { get; set; }
-
-    // Simple Chat models
+    public virtual DbSet<UserFollower> UserFollowers { get; set; }    public virtual DbSet<EmailVerificationCode> EmailVerificationCodes { get; set; }    // Simple Chat models
     public virtual DbSet<ChatConversation> ChatConversations { get; set; }
     public virtual DbSet<SimpleMessage> SimpleMessages { get; set; }
+    public virtual DbSet<MessageReaction> MessageReactions { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -179,6 +178,22 @@ public partial class SocialMediaDbContext : DbContext
                 .OnDelete(DeleteBehavior.ClientSetNull);            entity.HasOne(d => d.ReplyToMessage).WithMany()
                 .HasForeignKey(d => d.ReplyToMessageId)
                 .OnDelete(DeleteBehavior.NoAction);
+        });        modelBuilder.Entity<MessageReaction>(entity =>
+        {
+            entity.HasIndex(e => e.MessageId, "IX_MessageReactions_MessageId");
+            entity.HasIndex(e => e.UserId, "IX_MessageReactions_UserId");
+            entity.HasIndex(e => new { e.MessageId, e.UserId }, "IX_MessageReactions_MessageId_UserId")
+                .IsUnique();
+
+            entity.Property(e => e.ReactionType).HasMaxLength(50).HasDefaultValue("like");
+
+            entity.HasOne(d => d.Message).WithMany(p => p.Reactions)
+                .HasForeignKey(d => d.MessageId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.ClientSetNull);
         });
 
         OnModelCreatingPartial(modelBuilder);

@@ -238,11 +238,9 @@ public class SimpleChatService : ISimpleChatService
             MediaFileSize = messageRequest.MediaFileSize
         };
 
-        _context.SimpleMessages.Add(message);
-
-        // Cập nhật thông tin cuộc trò chuyện
+        _context.SimpleMessages.Add(message);        // Cập nhật thông tin cuộc trò chuyện
         var displayMessage = !string.IsNullOrEmpty(message.Content) ? message.Content :
-                           !string.IsNullOrEmpty(message.MediaFilename) ? $"📁 {message.MediaFilename}" : "📁 File";
+                           GetMediaDisplayMessage(message.MediaType, message.MediaFilename);
         
         conversation.LastMessage = displayMessage.Length > 100 ? 
                                   displayMessage.Substring(0, 100) + "..." :
@@ -479,8 +477,7 @@ public class SimpleChatService : ISimpleChatService
                 Filename = mediaFile.FileName,
                 FileSize = mediaFile.Length,
                 Message = "Media uploaded successfully"
-            };
-        }
+            };        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error uploading chat media for user {UserId}", userId);
@@ -490,5 +487,19 @@ public class SimpleChatService : ISimpleChatService
                 Message = "An error occurred while uploading media"
             };
         }
+    }    private string GetMediaDisplayMessage(string? mediaType, string? mediaFilename)
+    {
+        if (string.IsNullOrEmpty(mediaType))
+        {
+            return !string.IsNullOrEmpty(mediaFilename) ? mediaFilename : "Đã gửi tệp tin";
+        }
+
+        return mediaType.ToLower() switch
+        {
+            "image" => "Đã gửi hình ảnh",
+            "video" => "Đã gửi video", 
+            "file" => !string.IsNullOrEmpty(mediaFilename) ? mediaFilename : "Đã gửi tệp tin",
+            _ => !string.IsNullOrEmpty(mediaFilename) ? mediaFilename : "Đã gửi tệp tin"
+        };
     }
 }

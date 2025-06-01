@@ -3,7 +3,9 @@ using CloudinaryDotNet.Actions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace SocialApp.Services.Utils;
@@ -34,10 +36,12 @@ public class CloudinaryService : ICloudinaryService
 {
     private readonly Cloudinary _cloudinary;
     private readonly ILogger<CloudinaryService> _logger;
+    private readonly HttpClient _httpClient;
 
-    public CloudinaryService(IConfiguration configuration, ILogger<CloudinaryService> logger)
+    public CloudinaryService(IConfiguration configuration, ILogger<CloudinaryService> logger, IHttpClientFactory httpClientFactory)
     {
         _logger = logger;
+        _httpClient = httpClientFactory.CreateClient("CloudinaryClient");
         
         // Try to get Cloudinary settings from environment variables first
         var cloudName = Environment.GetEnvironmentVariable("CLOUDINARY_CLOUD_NAME");
@@ -58,10 +62,14 @@ public class CloudinaryService : ICloudinaryService
         {
             _logger.LogError("Cloudinary configuration is missing or incomplete");
             throw new InvalidOperationException("Cloudinary configuration is missing or incomplete");
-        }        // Set up Cloudinary instance
+        }        
+          // Set up Cloudinary instance with enhanced configuration
         var account = new Account(cloudName, apiKey, apiSecret);
         _cloudinary = new Cloudinary(account);
-    }    public async Task<CloudinaryUploadResult?> UploadImageAsync(Stream fileStream, string fileName)
+        
+        // Configure Cloudinary settings for better reliability
+        _cloudinary.Api.Timeout = 300000; // 5 minutes timeout for large file uploads
+    }public async Task<CloudinaryUploadResult?> UploadImageAsync(Stream fileStream, string fileName)
     {
         const int maxRetries = 3;
         int attemptCount = 0;
@@ -145,10 +153,11 @@ public class CloudinaryService : ICloudinaryService
                     ResourceType = "image",
                     MediaType = mediaType
                 };
-            }
-            catch (Exception ex)
+            }            catch (Exception ex)
             {
-                _logger.LogError(ex, "Error uploading image to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
+                bool shouldRetry = ShouldRetryOnException(ex);
+                _logger.LogError(ex, "Error uploading image to Cloudinary (Attempt {AttemptCount}/{MaxRetries}). Will retry: {ShouldRetry}", 
+                    attemptCount, maxRetries, shouldRetry);
                 
                 // If this is our last attempt, return null
                 if (attemptCount >= maxRetries)
@@ -156,8 +165,9 @@ public class CloudinaryService : ICloudinaryService
                     return null;
                 }
                 
-                // Wait before the next retry with exponential backoff
-                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attemptCount - 1)));
+                // Wait before the next retry with exponential backoff plus jitter
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, attemptCount - 1) + Random.Shared.NextDouble());
+                await Task.Delay(delay);
             }
         }
         
@@ -251,10 +261,11 @@ public class CloudinaryService : ICloudinaryService
                     ResourceType = "image",
                     MediaType = mediaType
                 };
-            }
-            catch (Exception ex)
+            }            catch (Exception ex)
             {
-                _logger.LogError(ex, "Error uploading transformed image to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
+                bool shouldRetry = ShouldRetryOnException(ex);
+                _logger.LogError(ex, "Error uploading transformed image to Cloudinary (Attempt {AttemptCount}/{MaxRetries}). Will retry: {ShouldRetry}", 
+                    attemptCount, maxRetries, shouldRetry);
                 
                 // If this is our last attempt, return null
                 if (attemptCount >= maxRetries)
@@ -262,34 +273,39 @@ public class CloudinaryService : ICloudinaryService
                     return null;
                 }
                 
-                // Wait before the next retry with exponential backoff
-                await Task.Delay(TimeSpan.FromSeconds(Math.Pow(2, attemptCount - 1)));
+                // Wait before the next retry with exponential backoff plus jitter
+                var delay = TimeSpan.FromSeconds(Math.Pow(2, attemptCount - 1) + Random.Shared.NextDouble());
+                await Task.Delay(delay);
             }
         }
         
         return null; // If we reach here, all attempts failed
-    }public async Task<CloudinaryUploadResult?> UploadVideoAsync(Stream fileStream, string fileName)
+    }    public async Task<CloudinaryUploadResult?> UploadVideoAsync(Stream fileStream, string fileName)
     {
         const int maxRetries = 3;
         int attemptCount = 0;
         
         // Create a copy of the stream that we can reuse for retries
-        using var memoryStream = new MemoryStream();
-        await fileStream.CopyToAsync(memoryStream);
-        memoryStream.Position = 0;
+        byte[] fileBytes;
+        using (var memoryStream = new MemoryStream())
+        {
+            await fileStream.CopyToAsync(memoryStream);
+            fileBytes = memoryStream.ToArray();
+        }
         
         while (attemptCount < maxRetries)
         {
+            attemptCount++;
+            _logger.LogInformation("Attempting to upload video to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
+            
+            // Create a new memory stream for each attempt
+            using var uploadStream = new MemoryStream(fileBytes);
+            
             try
-            {
-                attemptCount++;
-                _logger.LogInformation("Attempting to upload video to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
-                
-                // Reset memory stream position for each attempt
-                memoryStream.Position = 0;                // Prepare upload parameters
+            {                // Prepare upload parameters
                 var uploadParams = new VideoUploadParams
                 {
-                    File = new FileDescription(fileName, memoryStream),
+                    File = new FileDescription(fileName, uploadStream),
                     Folder = "videos",
                     UseFilename = true,
                     UniqueFilename = true,
@@ -349,10 +365,11 @@ public class CloudinaryService : ICloudinaryService
                     ResourceType = "video",
                     MediaType = mediaType
                 };
-            }
-            catch (Exception ex)
+            }            catch (Exception ex)
             {
-                _logger.LogError(ex, "Error uploading video to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
+                bool shouldRetry = ShouldRetryOnException(ex);
+                _logger.LogError(ex, "Error uploading video to Cloudinary (Attempt {AttemptCount}/{MaxRetries}). Will retry: {ShouldRetry}", 
+                    attemptCount, maxRetries, shouldRetry);
                 
                 // If this is our last attempt, return null
                 if (attemptCount >= maxRetries)
@@ -360,36 +377,41 @@ public class CloudinaryService : ICloudinaryService
                     return null;
                 }
                 
-                // Wait before the next retry with exponential backoff
-                await Task.Delay(1000 * attemptCount);
+                // Wait before the next retry with exponential backoff plus jitter
+                var delay = TimeSpan.FromMilliseconds(1000 * attemptCount + Random.Shared.Next(0, 500));
+                await Task.Delay(delay);
             }
         }
-        
-        return null;
-    }public async Task<CloudinaryUploadResult?> UploadFileAsync(Stream fileStream, string fileName)
+          return null;
+    }
+
+    public async Task<CloudinaryUploadResult?> UploadFileAsync(Stream fileStream, string fileName)
     {
         const int maxRetries = 3;
         int attemptCount = 0;
         
         // Create a copy of the stream that we can reuse for retries
-        using var memoryStream = new MemoryStream();
-        await fileStream.CopyToAsync(memoryStream);
-        memoryStream.Position = 0;
+        byte[] fileBytes;
+        using (var memoryStream = new MemoryStream())
+        {
+            await fileStream.CopyToAsync(memoryStream);
+            fileBytes = memoryStream.ToArray();
+        }
         
         while (attemptCount < maxRetries)
         {
+            attemptCount++;
+            _logger.LogInformation("Attempting to upload file to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
+            
+            // Create a new memory stream for each attempt
+            using var uploadStream = new MemoryStream(fileBytes);
+            
             try
             {
-                attemptCount++;
-                _logger.LogInformation("Attempting to upload file to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
-                
-                // Reset memory stream position for each attempt
-                memoryStream.Position = 0;
-                
-                // Prepare upload parameters
+                  // Prepare upload parameters
                 var uploadParams = new RawUploadParams
                 {
-                    File = new FileDescription(fileName, memoryStream),
+                    File = new FileDescription(fileName, uploadStream),
                     Folder = "files",
                     UseFilename = true,
                     UniqueFilename = true,
@@ -442,10 +464,12 @@ public class CloudinaryService : ICloudinaryService
                     ResourceType = "raw",
                     MediaType = mediaType
                 };
-            }
-            catch (Exception ex)
+            }            catch (Exception ex)
             {
-                _logger.LogError(ex, "Error uploading file to Cloudinary (Attempt {AttemptCount}/{MaxRetries})", attemptCount, maxRetries);
+                bool shouldRetry = ShouldRetryOnException(ex);
+                LogConnectionDiagnostics(ex, attemptCount);
+                _logger.LogError(ex, "Error uploading file to Cloudinary (Attempt {AttemptCount}/{MaxRetries}). Will retry: {ShouldRetry}", 
+                    attemptCount, maxRetries, shouldRetry);
                 
                 // If this is our last attempt, return null
                 if (attemptCount >= maxRetries)
@@ -454,7 +478,9 @@ public class CloudinaryService : ICloudinaryService
                 }
                 
                 // Wait before the next retry with exponential backoff
-                await Task.Delay(1000 * attemptCount);
+                // Add jitter to prevent thundering herd
+                var delay = TimeSpan.FromMilliseconds(1000 * attemptCount + Random.Shared.Next(0, 500));
+                await Task.Delay(delay);
             }
         }
         
@@ -478,6 +504,52 @@ public class CloudinaryService : ICloudinaryService
         {
             _logger.LogError(ex, "Error deleting media from Cloudinary");
             return false;
+        }
+    }
+
+    // Helper method to determine if an exception warrants a retry
+    private static bool ShouldRetryOnException(Exception ex)
+    {
+        return ex switch
+        {
+            HttpRequestException httpEx when httpEx.Message.Contains("SSL connection") => true,
+            HttpRequestException httpEx when httpEx.Message.Contains("timeout") => true,
+            HttpRequestException httpEx when httpEx.Message.Contains("connection was forcibly closed") => true,
+            IOException ioEx when ioEx.Message.Contains("transport connection") => true,
+            System.Net.Sockets.SocketException => true,
+            TaskCanceledException => true,
+            TimeoutException => true,
+            _ => true // Retry on any other exception for now
+        };
+    }
+
+    // Helper method to log detailed connection diagnostics
+    private void LogConnectionDiagnostics(Exception ex, int attemptCount)
+    {
+        var innerEx = ex.InnerException;
+        _logger.LogWarning("Cloudinary connection attempt {AttemptCount} failed. Exception Type: {ExceptionType}", 
+            attemptCount, ex.GetType().Name);
+        
+        if (innerEx != null)
+        {
+            _logger.LogWarning("Inner exception: {InnerExceptionType} - {InnerMessage}", 
+                innerEx.GetType().Name, innerEx.Message);
+            
+            if (innerEx.InnerException != null)
+            {
+                _logger.LogWarning("Deepest inner exception: {DeepestExceptionType} - {DeepestMessage}", 
+                    innerEx.InnerException.GetType().Name, innerEx.InnerException.Message);
+            }
+        }
+
+        // Log network connectivity suggestions
+        if (ex.Message.Contains("SSL connection") || ex.Message.Contains("forcibly closed"))
+        {
+            _logger.LogInformation("SSL connection issue detected. This might be due to:");
+            _logger.LogInformation("1. Network firewall blocking HTTPS connections");
+            _logger.LogInformation("2. Corporate proxy settings");
+            _logger.LogInformation("3. DNS resolution issues");
+            _logger.LogInformation("4. TLS version compatibility");
         }
     }
 }

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Microsoft.AspNetCore.Http;
+using System.ComponentModel.DataAnnotations;
 
 namespace SocialApp.DTOs;
 
@@ -59,6 +60,12 @@ public class SimpleMessageDto
     public string? MediaFilename { get; set; }
     public long? MediaFileSize { get; set; }
     public string MessageType { get; set; } = "Text";
+    
+    // Reaction fields
+    public Dictionary<string, int> ReactionCounts { get; set; } = new Dictionary<string, int>();
+    public bool HasReactedByCurrentUser { get; set; }
+    public string? CurrentUserReactionType { get; set; }
+    public int TotalReactions { get; set; }
 }
 
 public class ConversationMessagesResponseDto
@@ -92,4 +99,37 @@ public class UploadChatMediaResult
     public string? MimeType { get; set; }
     public string? Filename { get; set; }
     public long? FileSize { get; set; }
+}
+
+// Message Reaction DTOs
+public class CreateMessageReactionDto
+{
+    [Required]
+    public int MessageId { get; set; }
+    
+    [Required]
+    [StringLength(50)]
+    public string ReactionType { get; set; } = "like"; // like, love, haha, wow, sad, angry, thumbs_up, thumbs_down
+}
+
+public class MessageReactionDto
+{
+    public int Id { get; set; }
+    public int MessageId { get; set; }
+    public int UserId { get; set; }
+    public string Username { get; set; } = string.Empty;
+    public string? FirstName { get; set; }
+    public string? LastName { get; set; }
+    public string? ProfilePictureUrl { get; set; }
+    public string ReactionType { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+}
+
+public class MessageReactionSummaryDto
+{
+    public int MessageId { get; set; }
+    public Dictionary<string, int> ReactionCounts { get; set; } = new Dictionary<string, int>();
+    public bool HasReactedByCurrentUser { get; set; }
+    public string? CurrentUserReactionType { get; set; }
+    public List<MessageReactionDto> RecentReactions { get; set; } = new List<MessageReactionDto>();
 }

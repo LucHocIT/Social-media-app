@@ -108,7 +108,9 @@ builder.Services.AddScoped<ICommentService, CommentService>();
 builder.Services.AddScoped<ICommentReportService, CommentReportService>();
 
 // Chat services
-builder.Services.AddScoped<ISimpleChatService, SimpleChatService>();
+builder.Services.AddScoped<IConversationService, ConversationService>();
+builder.Services.AddScoped<IMessageService, MessageService>();
+builder.Services.AddScoped<ISimpleChatService, SimpleChatService>(); // Facade that combines both services
 builder.Services.AddScoped<IMessageReactionService, MessageReactionService>();
 
 // User presence service

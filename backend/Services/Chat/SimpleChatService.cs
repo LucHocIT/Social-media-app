@@ -229,14 +229,20 @@ public class SimpleChatService : ISimpleChatService
 
         // Đảm bảo cả 2 user đều có thể thấy cuộc trò chuyện
         conversation.IsUser1Active = true;
-        conversation.IsUser2Active = true;
+        conversation.IsUser2Active = true;        await _context.SaveChangesAsync();
 
-        await _context.SaveChangesAsync();
-
-        // Load sender info
+        // Load sender info và reply message info
         await _context.Entry(message)
             .Reference(m => m.Sender)
             .LoadAsync();
+            
+        // Load reply message nếu có
+        if (message.ReplyToMessageId.HasValue)
+        {
+            await _context.Entry(message)
+                .Reference(m => m.ReplyToMessage)
+                .LoadAsync();
+        }
 
         // Debug logging
         _logger.LogInformation("New message from {SenderName} (ID: {SenderId}): Avatar = {Avatar}", 
@@ -253,7 +259,8 @@ public class SimpleChatService : ISimpleChatService
             Content = message.Content,
             SentAt = message.SentAt,
             IsMine = true,
-            ReplyToMessageId = message.ReplyToMessageId
+            ReplyToMessageId = message.ReplyToMessageId,
+            ReplyToContent = message.ReplyToMessage?.Content
         };
     }    public async Task<bool> MarkConversationAsReadAsync(int conversationId, int userId)
     {

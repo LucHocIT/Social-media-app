@@ -432,14 +432,17 @@ public class SimpleChatController : ControllerBase
 
             var message = await _context.SimpleMessages
                 .Include(m => m.Conversation)
-                .FirstOrDefaultAsync(m => m.Id == messageId);
-
-            var result = await _messageReactionService.ToggleReactionAsync(currentUserId.Value, reactionDto);
+                .FirstOrDefaultAsync(m => m.Id == messageId);            var result = await _messageReactionService.ToggleReactionAsync(currentUserId.Value, reactionDto);
 
             if (message != null)
             {
+                // Get updated reaction summary for broadcasting
+                var reactionSummary = await _messageReactionService.GetMessageReactionsAsync(messageId, currentUserId.Value);
+                
                 // Get user info for broadcasting
-                var user = await _context.Users.FindAsync(currentUserId.Value);                if (result) // Reaction was added
+                var user = await _context.Users.FindAsync(currentUserId.Value);
+
+                if (result) // Reaction was added
                 {
                     await _hubContext.Clients.Group($"Conversation_{message.ConversationId}")
                         .SendAsync("ReactionAdded", new
@@ -449,7 +452,8 @@ public class SimpleChatController : ControllerBase
                             UserId = currentUserId.Value,
                             UserName = user != null ? $"{user.FirstName} {user.LastName}".Trim() : "",
                             ConversationId = message.ConversationId,
-                            Timestamp = DateTime.UtcNow
+                            Timestamp = DateTime.UtcNow,
+                            ReactionSummary = reactionSummary
                         });
                 }
                 else // Reaction was removed
@@ -461,7 +465,8 @@ public class SimpleChatController : ControllerBase
                             ReactionType = existingReaction?.ReactionType ?? reactionDto.ReactionType,
                             UserId = currentUserId.Value,
                             ConversationId = message.ConversationId,
-                            Timestamp = DateTime.UtcNow
+                            Timestamp = DateTime.UtcNow,
+                            ReactionSummary = reactionSummary
                         });
                 }
             }

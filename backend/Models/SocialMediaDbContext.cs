@@ -22,7 +22,11 @@ public partial class SocialMediaDbContext : DbContext
 
     public virtual DbSet<User> Users { get; set; }
 
-    public virtual DbSet<UserFollower> UserFollowers { get; set; }    public virtual DbSet<EmailVerificationCode> EmailVerificationCodes { get; set; }    // Simple Chat models
+    public virtual DbSet<UserFollower> UserFollowers { get; set; }
+
+    public virtual DbSet<UserBlock> UserBlocks { get; set; }
+
+    public virtual DbSet<EmailVerificationCode> EmailVerificationCodes { get; set; }    // Simple Chat models
     public virtual DbSet<ChatConversation> ChatConversations { get; set; }
     public virtual DbSet<SimpleMessage> SimpleMessages { get; set; }
     public virtual DbSet<MessageReaction> MessageReactions { get; set; }
@@ -125,6 +129,24 @@ public partial class SocialMediaDbContext : DbContext
 
             entity.HasOne(d => d.Following).WithMany(p => p.UserFollowerFollowings)
                 .HasForeignKey(d => d.FollowingId)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+        });
+
+        modelBuilder.Entity<UserBlock>(entity =>
+        {
+            entity.HasIndex(e => e.BlockerId, "IX_UserBlocks_BlockerId");
+            entity.HasIndex(e => e.BlockedUserId, "IX_UserBlocks_BlockedUserId");
+            entity.HasIndex(e => new { e.BlockerId, e.BlockedUserId }, "IX_UserBlocks_BlockerId_BlockedUserId")
+                .IsUnique();
+
+            entity.Property(e => e.Reason).HasMaxLength(500);
+
+            entity.HasOne(d => d.Blocker).WithMany(p => p.UserBlockBlockers)
+                .HasForeignKey(d => d.BlockerId)
+                .OnDelete(DeleteBehavior.ClientSetNull);
+
+            entity.HasOne(d => d.BlockedUser).WithMany(p => p.UserBlockBlockedUsers)
+                .HasForeignKey(d => d.BlockedUserId)
                 .OnDelete(DeleteBehavior.ClientSetNull);
         });
 

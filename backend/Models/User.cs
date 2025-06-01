@@ -45,4 +45,8 @@ public partial class User
     public virtual ICollection<UserFollower> UserFollowerFollowers { get; set; } = new List<UserFollower>();
 
     public virtual ICollection<UserFollower> UserFollowerFollowings { get; set; } = new List<UserFollower>();
+
+    public virtual ICollection<UserBlock> UserBlockBlockers { get; set; } = new List<UserBlock>();
+
+    public virtual ICollection<UserBlock> UserBlockBlockedUsers { get; set; } = new List<UserBlock>();
 }

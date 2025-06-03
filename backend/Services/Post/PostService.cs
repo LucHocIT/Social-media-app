@@ -40,7 +40,7 @@ public class PostService : IPostService
             {
                 Content = postDto.Content,
                 Location = postDto.Location,
-                IsPrivate = postDto.IsPrivate,
+                PrivacyLevel = postDto.PrivacyLevel, // Use PrivacyLevel directly
                 CreatedAt = DateTime.Now,
                 UserId = userId
             };
@@ -115,7 +115,7 @@ public class PostService : IPostService
                 return null;
             }            post.Content = postDto.Content;
             post.Location = postDto.Location;
-            post.IsPrivate = postDto.IsPrivate;
+            post.PrivacyLevel = postDto.PrivacyLevel; // Use PrivacyLevel directly
             post.UpdatedAt = DateTime.Now;
 
             // Update multiple media files if provided
@@ -209,12 +209,11 @@ public class PostService : IPostService
             {
                 _logger.LogWarning("Post {PostId} not found", postId);
                 return null;
-            }
-
-            // Apply privacy filtering - private posts should only be visible to:
+            }            // Apply privacy filtering - private posts should only be visible to:
             // 1. The post author themselves
             // 2. Users who are following the post author
-            if (post.IsPrivate)
+            // Secret posts (level 2) should only be visible to the author
+            if (post.PrivacyLevel == 1) // Private
             {
                 if (currentUserId.HasValue)
                 {
@@ -223,8 +222,7 @@ public class PostService : IPostService
                         // Check if current user is following the post author
                         var isFollowing = await _context.UserFollowers
                             .AnyAsync(uf => uf.FollowerId == currentUserId.Value && uf.FollowingId == post.UserId);
-                        
-                        if (!isFollowing)
+                          if (!isFollowing)
                         {
                             // Not following and not the author, so can't view private post
                             _logger.LogWarning("User {CurrentUserId} attempted to access private post {PostId} without permission", currentUserId.Value, postId);
@@ -237,6 +235,15 @@ public class PostService : IPostService
                 {
                     // Anonymous users can't see private posts
                     _logger.LogWarning("Anonymous user attempted to access private post {PostId}", postId);
+                    return null;
+                }
+            }
+            else if (post.PrivacyLevel == 2) // Secret - only author can see
+            {
+                if (!currentUserId.HasValue || currentUserId.Value != post.UserId)
+                {
+                    // Only the author can see secret posts
+                    _logger.LogWarning("User {CurrentUserId} attempted to access secret post {PostId}", currentUserId, postId);
                     return null;
                 }
             }
@@ -285,17 +292,17 @@ public class PostService : IPostService
                     .Where(uf => uf.FollowerId == currentUserId.Value)
                     .Select(uf => uf.FollowingId)
                     .ToListAsync();
-                
-                query = query.Where(p => 
-                    !p.IsPrivate || // Public posts are visible to everyone
+                  query = query.Where(p => 
+                    p.PrivacyLevel == 0 || // Public posts are visible to everyone
                     p.UserId == currentUserId.Value || // Own posts are always visible
-                    currentUserFollowingIds.Contains(p.UserId) // Private posts are visible if following the author
+                    (p.PrivacyLevel == 1 && currentUserFollowingIds.Contains(p.UserId)) // Private posts are visible if following the author
+                    // Secret posts (level 2) are only visible to the author, handled by p.UserId == currentUserId.Value above
                 );
             }
             else
             {
                 // Anonymous users can only see public posts
-                query = query.Where(p => !p.IsPrivate);
+                query = query.Where(p => p.PrivacyLevel == 0);
             }
 
             // Get total count
@@ -358,19 +365,17 @@ public class PostService : IPostService
                     // Check if current user is following the profile user
                     var isFollowing = await _context.UserFollowers
                         .AnyAsync(uf => uf.FollowerId == currentUserId.Value && uf.FollowingId == userId);
-                    
-                    if (!isFollowing)
+                      if (!isFollowing)
                     {
                         // Not following, so can only see public posts
-                        query = query.Where(p => !p.IsPrivate);
+                        query = query.Where(p => p.PrivacyLevel == 0);
                     }
                 }
                 // If currentUserId == userId, they can see all their own posts (both public and private)
-            }
-            else
+            }            else
             {
                 // Anonymous users can only see public posts
-                query = query.Where(p => !p.IsPrivate);
+                query = query.Where(p => p.PrivacyLevel == 0);
             }
 
             // Apply ordering after filtering
@@ -587,11 +592,10 @@ public class PostService : IPostService
                 Height = m.Height,
                 Duration = m.Duration,
                 OrderIndex = m.OrderIndex
-            }).OrderBy(m => m.OrderIndex).ToList() ?? new List<PostMediaDTO>(),
-            CreatedAt = post.CreatedAt,
+            }).OrderBy(m => m.OrderIndex).ToList() ?? new List<PostMediaDTO>(),            CreatedAt = post.CreatedAt,
             UpdatedAt = post.UpdatedAt,            UserId = post.UserId,
             Location = post.Location,
-            IsPrivate = post.IsPrivate,
+            PrivacyLevel = post.PrivacyLevel, // Return PrivacyLevel directly
             Username = post.User.Username,
             FirstName = post.User.FirstName,
             LastName = post.User.LastName,

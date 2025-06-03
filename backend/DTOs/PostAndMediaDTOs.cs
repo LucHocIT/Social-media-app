@@ -19,8 +19,7 @@ namespace SocialApp.DTOs
         public int? Height { get; set; }
         public long? Duration { get; set; }
         public int OrderIndex { get; set; } = 0;
-    }
-      public class CreatePostDTO
+    }      public class CreatePostDTO
     {
         [StringLength(500)]
         public string? Content { get; set; }
@@ -33,7 +32,16 @@ namespace SocialApp.DTOs
 
         public string? Location { get; set; }
         
-        public bool IsPrivate { get; set; } = false;
+        // Privacy level: 0 = Public, 1 = Private, 2 = Secret
+        public int PrivacyLevel { get; set; } = 0;
+        
+        // Legacy support for backward compatibility
+        [System.Text.Json.Serialization.JsonIgnore]
+        public bool IsPrivate 
+        { 
+            get => PrivacyLevel > 0; 
+            set => PrivacyLevel = value ? 1 : 0; 
+        }
     }    public class UpdatePostDTO
     {
         [StringLength(500)]
@@ -49,9 +57,17 @@ namespace SocialApp.DTOs
 
         public string? Location { get; set; }
         
-        public bool IsPrivate { get; set; } = false;
-    }
-      public class PostResponseDTO
+        // Privacy level: 0 = Public, 1 = Private, 2 = Secret
+        public int PrivacyLevel { get; set; } = 0;
+        
+        // Legacy support for backward compatibility
+        [System.Text.Json.Serialization.JsonIgnore]
+        public bool IsPrivate 
+        { 
+            get => PrivacyLevel > 0; 
+            set => PrivacyLevel = value ? 1 : 0; 
+        }
+    }      public class PostResponseDTO
     {
         public int Id { get; set; }
         public string? Content { get; set; }
@@ -69,7 +85,16 @@ namespace SocialApp.DTOs
 
         public string? Location { get; set; }
         
-        public bool IsPrivate { get; set; } = false;
+        // Privacy level: 0 = Public, 1 = Private, 2 = Secret
+        public int PrivacyLevel { get; set; } = 0;
+        
+        // Legacy support for backward compatibility
+        [System.Text.Json.Serialization.JsonIgnore]
+        public bool IsPrivate 
+        { 
+            get => PrivacyLevel > 0; 
+            set => PrivacyLevel = value ? 1 : 0; 
+        }
         
         public string Username { get; set; } = null!;
         public string? FirstName { get; set; }

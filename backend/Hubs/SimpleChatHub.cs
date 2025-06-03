@@ -218,6 +218,99 @@ public class SimpleChatHub : Hub
             _logger.LogError(ex, $"Error sending message from user {userId.Value} to conversation {conversationId}");
             await Clients.Caller.SendAsync("Error", "Failed to send message");
         }
+    }    /// <summary>
+    /// Gửi location message tạm thời (không lưu vào database, chỉ qua SignalR)
+    /// </summary>
+    public async Task SendTemporaryLocationMessage(int conversationId, double latitude, double longitude, string address)
+    {
+        var userId = GetUserId();
+        if (!userId.HasValue) return;
+
+        try
+        {
+            if (string.IsNullOrWhiteSpace(address) || latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180)
+            {
+                await Clients.Caller.SendAsync("Error", "Invalid location data");
+                return;
+            }
+
+            // Check conversation access and block status
+            var conversation = await _context.ChatConversations
+                .Include(c => c.User1)
+                .Include(c => c.User2)
+                .FirstOrDefaultAsync(c => c.Id == conversationId && 
+                             ((c.User1Id == userId.Value && c.IsUser1Active) || 
+                              (c.User2Id == userId.Value && c.IsUser2Active)));
+
+            if (conversation == null)
+            {
+                await Clients.Caller.SendAsync("Error", "Conversation not found or access denied");
+                return;
+            }
+
+            // Check for block relationships
+            var otherUserId = conversation.User1Id == userId.Value ? conversation.User2Id : conversation.User1Id;
+            var areBlocking = await _userBlockService.AreUsersBlockingEachOtherAsync(userId.Value, otherUserId);
+            if (areBlocking)
+            {
+                _logger.LogWarning("User {UserId} attempted to send location message but users are blocking each other", userId.Value);
+                await Clients.Caller.SendAsync("Error", "Cannot send location to blocked user");
+                return;
+            }
+
+            // Tạo temporary location message object (không lưu vào database)
+            var currentUser = conversation.User1Id == userId.Value ? conversation.User1 : conversation.User2;
+            var temporaryLocationMessage = new
+            {
+                Id = -1, // Temporary ID để phân biệt với database messages
+                ConversationId = conversationId,
+                SenderId = userId.Value,
+                SenderName = currentUser.Username ?? currentUser.Email,
+                SenderAvatar = currentUser.ProfilePictureUrl,
+                Content = address, // Address as content
+                MessageType = "location",
+                LocationData = new
+                {
+                    Latitude = latitude,
+                    Longitude = longitude,
+                    Address = address
+                },
+                SentAt = DateTime.Now,
+                IsTemporary = true,
+                ExpiresAt = DateTime.Now.AddHours(1), // Hết hạn sau 1 giờ
+                IsRead = false,
+                IsEdited = false,
+                IsDeleted = false,
+                ReplyToMessage = (object?)null,
+                Reactions = new object[0]
+            };
+
+            // Gửi location message đến tất cả members trong conversation
+            await Clients.Group($"Conversation_{conversationId}")
+                .SendAsync("ReceiveMessage", temporaryLocationMessage);
+
+            // Send conversation update to other participants
+            var receiverId = conversation.User1Id == userId.Value ? conversation.User2Id : conversation.User1Id;
+            
+            // Send conversation list update to the other user
+            await Clients.Group($"User_{receiverId}")
+                .SendAsync("ConversationUpdated", new
+                {
+                    ConversationId = conversationId,
+                    LastMessage = "📍 Đã chia sẻ vị trí",
+                    LastMessageTime = temporaryLocationMessage.SentAt,
+                    SenderId = temporaryLocationMessage.SenderId,
+                    SenderName = temporaryLocationMessage.SenderName,
+                    UnreadCount = await GetUnreadCountForUser(conversationId, receiverId)
+                });
+
+            _logger.LogInformation($"User {userId.Value} sent temporary location message to conversation {conversationId}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, $"Error sending temporary location message from user {userId.Value} to conversation {conversationId}");
+            await Clients.Caller.SendAsync("Error", "Failed to send location");
+        }
     }
 
     /// <summary>

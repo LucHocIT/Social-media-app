@@ -11,11 +11,12 @@ public partial class Post
 
     public DateTime CreatedAt { get; set; }
 
-    public DateTime? UpdatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }    public int UserId { get; set; }    public string? Location { get; set; }
 
-    public int UserId { get; set; }
+    // Privacy level: 0 = Public, 1 = Private, 2 = Secret
+    public int PrivacyLevel { get; set; } = 0;
 
-    public string? Location { get; set; }public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();
+    public virtual ICollection<Comment> Comments { get; set; } = new List<Comment>();
     
     public virtual ICollection<Reaction> Reactions { get; set; } = new List<Reaction>();
 

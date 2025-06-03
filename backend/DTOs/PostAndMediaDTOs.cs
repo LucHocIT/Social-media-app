@@ -28,12 +28,12 @@ namespace SocialApp.DTOs
         // Legacy single media support (for backward compatibility)
         public string? MediaUrl { get; set; }
         public string? MediaType { get; set; } // "image", "video", "file"
-        public string? MediaPublicId { get; set; }
-
-        // New multiple media support
+        public string? MediaPublicId { get; set; }        // New multiple media support
         public List<PostMediaDTO>? MediaFiles { get; set; } = new List<PostMediaDTO>();
 
         public string? Location { get; set; }
+        
+        public bool IsPrivate { get; set; } = false;
     }    public class UpdatePostDTO
     {
         [StringLength(500)]
@@ -48,6 +48,8 @@ namespace SocialApp.DTOs
         public List<PostMediaDTO>? MediaFiles { get; set; } = new List<PostMediaDTO>();
 
         public string? Location { get; set; }
+        
+        public bool IsPrivate { get; set; } = false;
     }
       public class PostResponseDTO
     {
@@ -63,10 +65,13 @@ namespace SocialApp.DTOs
         public List<PostMediaDTO>? MediaFiles { get; set; } = new List<PostMediaDTO>();
         
         public DateTime CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
-        public int UserId { get; set; }
+        public DateTime? UpdatedAt { get; set; }        public int UserId { get; set; }
 
-        public string? Location { get; set; }        public string Username { get; set; } = null!;
+        public string? Location { get; set; }
+        
+        public bool IsPrivate { get; set; } = false;
+        
+        public string Username { get; set; } = null!;
         public string? FirstName { get; set; }
         public string? LastName { get; set; }
         public string? ProfilePictureUrl { get; set; }

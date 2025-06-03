@@ -40,6 +40,7 @@ public class PostService : IPostService
             {
                 Content = postDto.Content,
                 Location = postDto.Location,
+                IsPrivate = postDto.IsPrivate,
                 CreatedAt = DateTime.Now,
                 UserId = userId
             };
@@ -112,10 +113,9 @@ public class PostService : IPostService
             {
                 _logger.LogWarning("Post {PostId} not found for user {UserId}", postId, userId);
                 return null;
-            }
-
-            post.Content = postDto.Content;
+            }            post.Content = postDto.Content;
             post.Location = postDto.Location;
+            post.IsPrivate = postDto.IsPrivate;
             post.UpdatedAt = DateTime.Now;
 
             // Update multiple media files if provided
@@ -205,12 +205,40 @@ public class PostService : IPostService
                 .Include(p => p.Comments)
                 .Include(p => p.Reactions)
                 .Include(p => p.MediaFiles)
-                .FirstOrDefaultAsync(p => p.Id == postId);
-
-            if (post == null)
+                .FirstOrDefaultAsync(p => p.Id == postId);            if (post == null)
             {
                 _logger.LogWarning("Post {PostId} not found", postId);
                 return null;
+            }
+
+            // Apply privacy filtering - private posts should only be visible to:
+            // 1. The post author themselves
+            // 2. Users who are following the post author
+            if (post.IsPrivate)
+            {
+                if (currentUserId.HasValue)
+                {
+                    if (currentUserId.Value != post.UserId)
+                    {
+                        // Check if current user is following the post author
+                        var isFollowing = await _context.UserFollowers
+                            .AnyAsync(uf => uf.FollowerId == currentUserId.Value && uf.FollowingId == post.UserId);
+                        
+                        if (!isFollowing)
+                        {
+                            // Not following and not the author, so can't view private post
+                            _logger.LogWarning("User {CurrentUserId} attempted to access private post {PostId} without permission", currentUserId.Value, postId);
+                            return null;
+                        }
+                    }
+                    // If currentUserId == post.UserId, they can see their own private post
+                }
+                else
+                {
+                    // Anonymous users can't see private posts
+                    _logger.LogWarning("Anonymous user attempted to access private post {PostId}", postId);
+                    return null;
+                }
             }
 
             return MapPostToResponseDTO(post, currentUserId);
@@ -237,17 +265,37 @@ public class PostService : IPostService
             if (!string.IsNullOrEmpty(filter.Username))
             {
                 query = query.Where(p => p.User.Username == filter.Username);
-            }
-
-            // Filter by following if requested and currentUserId is provided
+            }            // Filter by following if requested and currentUserId is provided
             if (filter.OnlyFollowing == true && currentUserId.HasValue)
             {
                 var followingIds = await _context.UserFollowers
                     .Where(uf => uf.FollowerId == currentUserId.Value)
                     .Select(uf => uf.FollowingId)
                     .ToListAsync();
-
+                
                 query = query.Where(p => followingIds.Contains(p.UserId) || p.UserId == currentUserId.Value);
+            }
+
+            // Apply privacy filtering - private posts should only be visible to:
+            // 1. The post author themselves
+            // 2. Users who are following the post author
+            if (currentUserId.HasValue)
+            {
+                var currentUserFollowingIds = await _context.UserFollowers
+                    .Where(uf => uf.FollowerId == currentUserId.Value)
+                    .Select(uf => uf.FollowingId)
+                    .ToListAsync();
+                
+                query = query.Where(p => 
+                    !p.IsPrivate || // Public posts are visible to everyone
+                    p.UserId == currentUserId.Value || // Own posts are always visible
+                    currentUserFollowingIds.Contains(p.UserId) // Private posts are visible if following the author
+                );
+            }
+            else
+            {
+                // Anonymous users can only see public posts
+                query = query.Where(p => !p.IsPrivate);
             }
 
             // Get total count
@@ -293,13 +341,40 @@ public class PostService : IPostService
             {
                 PageNumber = pageNumber,
                 PageSize = pageSize
-            };            var query = _context.Posts
+            };            IQueryable<Models.Post> query = _context.Posts
                 .Include(p => p.User)
                 .Include(p => p.Comments)
                 .Include(p => p.Reactions)
                 .Include(p => p.MediaFiles)
-                .Where(p => p.UserId == userId)
-                .OrderByDescending(p => p.CreatedAt);
+                .Where(p => p.UserId == userId);
+
+            // Apply privacy filtering - private posts should only be visible to:
+            // 1. The post author themselves
+            // 2. Users who are following the post author
+            if (currentUserId.HasValue)
+            {
+                if (currentUserId.Value != userId)
+                {
+                    // Check if current user is following the profile user
+                    var isFollowing = await _context.UserFollowers
+                        .AnyAsync(uf => uf.FollowerId == currentUserId.Value && uf.FollowingId == userId);
+                    
+                    if (!isFollowing)
+                    {
+                        // Not following, so can only see public posts
+                        query = query.Where(p => !p.IsPrivate);
+                    }
+                }
+                // If currentUserId == userId, they can see all their own posts (both public and private)
+            }
+            else
+            {
+                // Anonymous users can only see public posts
+                query = query.Where(p => !p.IsPrivate);
+            }
+
+            // Apply ordering after filtering
+            query = query.OrderByDescending(p => p.CreatedAt);
 
             var totalCount = await query.CountAsync();
             var totalPages = (int)Math.Ceiling(totalCount / (double)pageSize);
@@ -516,6 +591,7 @@ public class PostService : IPostService
             CreatedAt = post.CreatedAt,
             UpdatedAt = post.UpdatedAt,            UserId = post.UserId,
             Location = post.Location,
+            IsPrivate = post.IsPrivate,
             Username = post.User.Username,
             FirstName = post.User.FirstName,
             LastName = post.User.LastName,

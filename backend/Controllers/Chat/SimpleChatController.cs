@@ -531,9 +531,7 @@ public class SimpleChatController : ControllerBase
             _logger.LogError(ex, "Error getting reaction details for message {MessageId}", messageId);
             return StatusCode(500, "Internal server error");
         }
-    }
-
-    /// <summary>
+    }    /// <summary>
     /// Lấy danh sách reactions theo loại
     /// </summary>
     [HttpGet("messages/{messageId}/reactions/{reactionType}")]
@@ -553,6 +551,36 @@ public class SimpleChatController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error getting reactions by type {ReactionType} for message {MessageId}", reactionType, messageId);
+            return StatusCode(500, "Internal server error");
+        }
+    }
+
+    /// <summary>
+    /// Xóa tin nhắn
+    /// </summary>
+    [HttpDelete("messages/{messageId}")]
+    public async Task<IActionResult> DeleteMessage(int messageId)
+    {
+        try
+        {
+            var currentUserId = GetCurrentUserId();
+            if (!currentUserId.HasValue)
+            {
+                return Unauthorized("User not authenticated");
+            }
+
+            var result = await _simpleChatService.DeleteMessageAsync(messageId, currentUserId.Value);
+            
+            if (!result)
+            {
+                return BadRequest(new { message = "Unable to delete message. Message not found or you don't have permission to delete it." });
+            }
+
+            return Ok(new { message = "Message deleted successfully" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting message {MessageId}", messageId);
             return StatusCode(500, "Internal server error");
         }
     }

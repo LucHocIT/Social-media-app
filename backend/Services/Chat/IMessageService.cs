@@ -12,4 +12,7 @@ public interface IMessageService
     
     // Upload media cho chat message
     Task<UploadChatMediaResult> UploadChatMediaAsync(int userId, IFormFile mediaFile, string mediaType);
+    
+    // Xóa tin nhắn
+    Task<bool> DeleteMessageAsync(int messageId, int userId);
 }

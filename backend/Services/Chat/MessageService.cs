@@ -313,9 +313,7 @@ public class MessageService : IMessageService
                 Message = "An error occurred while uploading media"
             };
         }
-    }
-
-    private string GetMediaDisplayMessage(string? mediaType, string? mediaFilename)
+    }    private string GetMediaDisplayMessage(string? mediaType, string? mediaFilename)
     {
         if (string.IsNullOrEmpty(mediaType))
         {
@@ -329,5 +327,108 @@ public class MessageService : IMessageService
             "file" => !string.IsNullOrEmpty(mediaFilename) ? mediaFilename : "Đã gửi tệp tin",
             _ => !string.IsNullOrEmpty(mediaFilename) ? mediaFilename : "Đã gửi tệp tin"
         };
+    }
+
+    public async Task<bool> DeleteMessageAsync(int messageId, int userId)
+    {
+        try
+        {
+            var message = await _context.SimpleMessages
+                .Include(m => m.Conversation)
+                .Include(m => m.Reactions)
+                .FirstOrDefaultAsync(m => m.Id == messageId && !m.IsDeleted);
+
+            if (message == null)
+            {
+                _logger.LogWarning("Message {MessageId} not found or already deleted", messageId);
+                return false;
+            }
+
+            // Chỉ cho phép người gửi xóa tin nhắn của mình
+            if (message.SenderId != userId)
+            {
+                _logger.LogWarning("User {UserId} tried to delete message {MessageId} without permission", userId, messageId);
+                return false;
+            }
+
+            // Kiểm tra quyền truy cập cuộc trò chuyện
+            var hasAccess = (message.Conversation.User1Id == userId && message.Conversation.IsUser1Active) ||
+                           (message.Conversation.User2Id == userId && message.Conversation.IsUser2Active);
+
+            if (!hasAccess)
+            {
+                _logger.LogWarning("User {UserId} doesn't have access to conversation for message {MessageId}", userId, messageId);
+                return false;
+            }
+
+            // Xóa reactions liên quan
+            if (message.Reactions.Any())
+            {
+                _context.MessageReactions.RemoveRange(message.Reactions);
+            }
+
+            // Đánh dấu tin nhắn đã bị xóa (soft delete)
+            message.IsDeleted = true;
+            message.Content = null; // Xóa nội dung
+
+            // Cập nhật last message của conversation nếu đây là tin nhắn mới nhất
+            if (message.Conversation.LastMessageSenderId == userId &&
+                message.SentAt == message.Conversation.LastMessageTime)
+            {
+                // Tìm tin nhắn gần nhất chưa bị xóa
+                var lastMessage = await _context.SimpleMessages
+                    .Where(m => m.ConversationId == message.ConversationId && !m.IsDeleted)
+                    .OrderByDescending(m => m.SentAt)
+                    .FirstOrDefaultAsync();
+
+                if (lastMessage != null)
+                {
+                    var displayMessage = !string.IsNullOrEmpty(lastMessage.Content) ? lastMessage.Content :
+                                       GetMediaDisplayMessage(lastMessage.MediaType, lastMessage.MediaFilename);
+                    
+                    message.Conversation.LastMessage = displayMessage.Length > 100 ? 
+                                                      displayMessage.Substring(0, 100) + "..." :
+                                                      displayMessage;
+                    message.Conversation.LastMessageTime = lastMessage.SentAt;
+                    message.Conversation.LastMessageSenderId = lastMessage.SenderId;
+                }
+                else
+                {
+                    // Không có tin nhắn nào còn lại
+                    message.Conversation.LastMessage = "";
+                    message.Conversation.LastMessageTime = message.Conversation.CreatedAt;
+                    message.Conversation.LastMessageSenderId = null;
+                }
+            }
+
+            message.Conversation.MessageCount = Math.Max(0, message.Conversation.MessageCount - 1);
+            message.Conversation.UpdatedAt = DateTime.Now;
+
+            await _context.SaveChangesAsync();
+
+            // Gửi thông báo qua SignalR
+            try
+            {
+                await _hubContext.Clients.Group($"Conversation_{message.ConversationId}")
+                    .SendAsync("MessageDeleted", new
+                    {
+                        MessageId = messageId,
+                        ConversationId = message.ConversationId,
+                        DeletedBy = userId,
+                        Timestamp = DateTime.UtcNow
+                    });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error sending SignalR notification for deleted message {MessageId}", messageId);
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error deleting message {MessageId} for user {UserId}", messageId, userId);
+            throw;
+        }
     }
 }

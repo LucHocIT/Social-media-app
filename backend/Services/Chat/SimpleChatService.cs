@@ -76,11 +76,15 @@ public class SimpleChatService : ISimpleChatService
     {
         _logger.LogDebug("Delegating SendMessageAsync to MessageService for conversation {ConversationId} and sender {SenderId}", conversationId, senderId);
         return await _messageService.SendMessageAsync(conversationId, senderId, messageDto, sendSignalR);
-    }
-
-    public async Task<UploadChatMediaResult> UploadChatMediaAsync(int userId, IFormFile mediaFile, string mediaType)
+    }    public async Task<UploadChatMediaResult> UploadChatMediaAsync(int userId, IFormFile mediaFile, string mediaType)
     {
         _logger.LogDebug("Delegating UploadChatMediaAsync to MessageService for user {UserId} and media type {MediaType}", userId, mediaType);
         return await _messageService.UploadChatMediaAsync(userId, mediaFile, mediaType);
+    }
+
+    public async Task<bool> DeleteMessageAsync(int messageId, int userId)
+    {
+        _logger.LogDebug("Delegating DeleteMessageAsync to MessageService for message {MessageId} and user {UserId}", messageId, userId);
+        return await _messageService.DeleteMessageAsync(messageId, userId);
     }
 }

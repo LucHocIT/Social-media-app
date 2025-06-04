@@ -15,16 +15,22 @@ namespace SocialApp.Controllers.Post;
 [Route("api/[controller]")]
 public class PostsController : ControllerBase
 {
-    private readonly IPostService _postService;
+    private readonly IPostManagementService _postManagementService;
+    private readonly IPostQueryService _postQueryService;
+    private readonly IPostMediaService _postMediaService;
     private readonly ILogger<PostsController> _logger;
 
     public PostsController(
-        IPostService postService,
+        IPostManagementService postManagementService,
+        IPostQueryService postQueryService,
+        IPostMediaService postMediaService,
         ILogger<PostsController> logger)
     {
-        _postService = postService;
+        _postManagementService = postManagementService;
+        _postQueryService = postQueryService;
+        _postMediaService = postMediaService;
         _logger = logger;
-    }    [HttpPost]
+    }[HttpPost]
     [Authorize]
     public async Task<ActionResult<PostResponseDTO>> CreatePost([FromBody] CreatePostDTO postDto)
     {
@@ -45,7 +51,7 @@ public class PostsController : ControllerBase
             }
 
             int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            var post = await _postService.CreatePostAsync(currentUserId, postDto);
+            var post = await _postManagementService.CreatePostAsync(currentUserId, postDto);
 
             if (post == null)
             {
@@ -72,7 +78,7 @@ public class PostsController : ControllerBase
                 currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             }
 
-            var post = await _postService.GetPostByIdAsync(postId, currentUserId);
+            var post = await _postQueryService.GetPostByIdAsync(postId, currentUserId);
 
             if (post == null)
             {
@@ -99,7 +105,7 @@ public class PostsController : ControllerBase
                 currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             }
 
-            var posts = await _postService.GetPostsAsync(filter, currentUserId);
+            var posts = await _postQueryService.GetPostsAsync(filter, currentUserId);
             return Ok(posts);
         }
         catch (Exception ex)
@@ -123,7 +129,7 @@ public class PostsController : ControllerBase
                 currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
             }
 
-            var posts = await _postService.GetPostsByUserAsync(userId, pageNumber, pageSize, currentUserId);
+            var posts = await _postQueryService.GetPostsByUserAsync(userId, pageNumber, pageSize, currentUserId);
             return Ok(posts);
         }
         catch (Exception ex)
@@ -145,7 +151,7 @@ public class PostsController : ControllerBase
             }
 
             int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            var post = await _postService.UpdatePostAsync(currentUserId, postId, postDto);
+            var post = await _postManagementService.UpdatePostAsync(currentUserId, postId, postDto);
 
             if (post == null)
             {
@@ -173,13 +179,13 @@ public class PostsController : ControllerBase
             // If user is an admin, allow them to delete any post
             if (isAdmin)
             {
-                var post = await _postService.GetPostByIdAsync(postId);
+                var post = await _postQueryService.GetPostByIdAsync(postId);
                 if (post == null)
                 {
                     return NotFound(new { message = "Post not found" });
                 }
 
-                bool result = await _postService.DeletePostAsync(post.UserId, postId);
+                bool result = await _postManagementService.DeletePostAsync(post.UserId, postId);
                 if (result)
                 {
                     return Ok(new { message = "Post deleted successfully by admin" });
@@ -192,7 +198,7 @@ public class PostsController : ControllerBase
             else
             {
                 // Regular users can only delete their own posts
-                bool result = await _postService.DeletePostAsync(currentUserId, postId);
+                bool result = await _postManagementService.DeletePostAsync(currentUserId, postId);
                 if (!result)
                 {
                     return NotFound(new { message = "Post not found or you don't have permission to delete it" });
@@ -221,7 +227,7 @@ public class PostsController : ControllerBase
             }
 
             int currentUserId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
-            var result = await _postService.UploadMultipleMediaAsync(currentUserId, uploadDto.MediaFiles, uploadDto.MediaTypes);
+            var result = await _postMediaService.UploadMultipleMediaAsync(currentUserId, uploadDto.MediaFiles, uploadDto.MediaTypes);
 
             if (!result.Success)
             {

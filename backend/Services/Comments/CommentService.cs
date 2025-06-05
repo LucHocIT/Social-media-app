@@ -59,9 +59,8 @@ namespace SocialApp.Services.Comment
                 _context.Comments.Add(comment);
                 await _context.SaveChangesAsync();
 
-                // Add notification to post author if not the same as commenter
-                if (post.UserId != userId)
-                {                    var notification = new Notification
+                // Add notification to post author if not the same as commenter                if (post.UserId != userId)
+                {                    var notification = new Models.Notification
                     {
                         UserId = post.UserId,
                         FromUserId = userId,
@@ -77,9 +76,8 @@ namespace SocialApp.Services.Comment
                 }                // Add notification to parent comment author if exists and not the same as commenter
                 if (commentDto.ParentCommentId.HasValue)
                 {
-                    var parentComment = await _context.Comments.FindAsync(commentDto.ParentCommentId.Value);
-                    if (parentComment != null && parentComment.UserId != userId)
-                    {                        var notification = new Notification
+                    var parentComment = await _context.Comments.FindAsync(commentDto.ParentCommentId.Value);                    if (parentComment != null && parentComment.UserId != userId)
+                    {                        var notification = new Models.Notification
                         {
                             UserId = parentComment.UserId,
                             FromUserId = userId,
@@ -329,11 +327,10 @@ namespace SocialApp.Services.Comment
                         CreatedAt = DateTime.Now
                     };
                     
-                    _context.Reactions.Add(reaction);
-                      // Create notification if comment author is not the same as reactor
+                    _context.Reactions.Add(reaction);                    // Create notification if comment author is not the same as reactor
                     if (comment.UserId != userId)
                     {
-                        var notification = new Notification
+                        var notification = new Models.Notification
                         {
                             UserId = comment.UserId,
                             FromUserId = userId,

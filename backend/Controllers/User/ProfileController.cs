@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Http;
 using SocialApp.DTOs;
 using SocialApp.Services.User;
+using SocialApp.Services.Notification;
 using System.Security.Claims;
 
 namespace SocialApp.Controllers.User;
@@ -11,15 +12,18 @@ namespace SocialApp.Controllers.User;
 [Route("api/[controller]")]
 public class ProfileController : ControllerBase
 {    private readonly IProfileService _profileService;
+    private readonly INotificationService _notificationService;
     private readonly ILogger<ProfileController> _logger;
 
     public ProfileController(
         IProfileService profileService,
+        INotificationService notificationService,
         ILogger<ProfileController> logger)
     {
         _profileService = profileService;
+        _notificationService = notificationService;
         _logger = logger;
-    }    [HttpGet("{userId}")]
+    }[HttpGet("{userId}")]
     public async Task<ActionResult<ProfileDTO>> GetUserProfile(int userId)
     {
         try
@@ -157,13 +161,22 @@ public class ProfileController : ControllerBase
         if (userId == currentUserId)
         {
             return BadRequest(new { message = "You cannot follow yourself" });
-        }
-
-        try
+        }        try
         {
             bool result = await _profileService.FollowUserAsync(currentUserId, userId);            if (!result)
             {
                 return BadRequest(new { message = "Failed to follow user. User may not exist or you may already be following them." });
+            }
+
+            // Create follow notification
+            try
+            {
+                await _notificationService.CreateFollowNotificationAsync(currentUserId, userId);
+            }
+            catch (Exception notificationEx)
+            {
+                _logger.LogWarning(notificationEx, "Failed to create follow notification for user {FollowerId} following {FollowedId}", currentUserId, userId);
+                // Don't fail the follow action if notification creation fails
             }
 
             return Ok(new { 

@@ -118,6 +118,9 @@ builder.Services.AddScoped<IMessageService, MessageService>();
 builder.Services.AddScoped<ISimpleChatService, SimpleChatService>(); // Facade that combines both services
 builder.Services.AddScoped<IMessageReactionService, MessageReactionService>();
 
+// Notification services
+builder.Services.AddScoped<SocialApp.Services.Notification.INotificationService, SocialApp.Services.Notification.NotificationService>();
+
 // User presence service
 builder.Services.AddHostedService<UserPresenceService>();
 

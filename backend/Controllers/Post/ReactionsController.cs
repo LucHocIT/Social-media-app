@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SocialApp.DTOs;
 using SocialApp.Models;
+using SocialApp.Services.Notification;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,17 +15,19 @@ namespace SocialApp.Controllers.Post
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class ReactionsController : ControllerBase
-    {
+    public class ReactionsController : ControllerBase    {
         private readonly SocialMediaDbContext _context;
         private readonly ILogger<ReactionsController> _logger;
+        private readonly INotificationService _notificationService;
 
         public ReactionsController(
             SocialMediaDbContext context,
-            ILogger<ReactionsController> logger)
+            ILogger<ReactionsController> logger,
+            INotificationService notificationService)
         {
             _context = context;
             _logger = logger;
+            _notificationService = notificationService;
         }
 
         [HttpPost]
@@ -90,10 +93,19 @@ namespace SocialApp.Controllers.Post
                     PostId = reactionDto.PostId,
                     ReactionType = reactionDto.ReactionType,
                     CreatedAt = DateTime.Now
-                };
-
-                _context.Reactions.Add(reaction);
+                };                _context.Reactions.Add(reaction);
                 await _context.SaveChangesAsync();
+
+                // Tạo thông báo cho chủ bài viết (nếu không phải chính mình)
+                try
+                {
+                    await _notificationService.CreateLikeNotificationAsync(reactionDto.PostId, currentUserId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to create like notification for post {PostId} by user {UserId}", reactionDto.PostId, currentUserId);
+                    // Không throw exception để không ảnh hưởng đến việc tạo reaction
+                }
 
                 // Get user info for the response
                 var currentUser = await _context.Users.FindAsync(currentUserId);

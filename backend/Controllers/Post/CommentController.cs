@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using SocialApp.DTOs;
 using SocialApp.Services.Comment;
+using SocialApp.Services.Notification;
 using System.Collections.Generic;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -10,16 +11,18 @@ namespace SocialApp.Controllers.Post
 {
     [ApiController]
     [Route("api/comments")]
-    public class CommentController : ControllerBase
-    {        private readonly ICommentService _commentService;
+    public class CommentController : ControllerBase    {        private readonly ICommentService _commentService;
         private readonly ICommentReportService _commentReportService;
+        private readonly INotificationService _notificationService;
 
         public CommentController(
             ICommentService commentService,
-            ICommentReportService commentReportService)
+            ICommentReportService commentReportService,
+            INotificationService notificationService)
         {
             _commentService = commentService;
             _commentReportService = commentReportService;
+            _notificationService = notificationService;
         }
 
         #region Comment Management
@@ -38,9 +41,31 @@ namespace SocialApp.Controllers.Post
         {
             var userId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
             if (userId == 0)
-                return Unauthorized();
-
-            var result = await _commentService.CreateCommentAsync(dto, userId);
+                return Unauthorized();            var result = await _commentService.CreateCommentAsync(dto, userId);
+            
+            // Tạo thông báo cho chủ bài viết và chủ comment gốc (nếu là reply)
+            if (result != null)
+            {
+                try
+                {
+                    if (dto.ParentCommentId.HasValue)
+                    {
+                        // Đây là reply to comment
+                        await _notificationService.CreateCommentReplyNotificationAsync(dto.ParentCommentId.Value, result.Id, userId);
+                    }
+                    else
+                    {
+                        // Đây là comment mới cho bài viết
+                        await _notificationService.CreateCommentNotificationAsync(dto.PostId, result.Id, userId);
+                    }
+                }
+                catch
+                {
+                    // Log nhưng không throw exception để không ảnh hưởng đến việc tạo comment
+                    // Notification failure shouldn't affect comment creation
+                }
+            }
+            
             return Ok(result);
         }
 

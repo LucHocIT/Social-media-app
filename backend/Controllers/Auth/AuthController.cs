@@ -3,24 +3,27 @@ using Microsoft.AspNetCore.Mvc;
 using SocialApp.DTOs;
 using SocialApp.Services.Auth;
 using SocialApp.Services.Email;
+using SocialApp.Services.Notification;
 
 namespace SocialApp.Controllers.Auth;
 
 [ApiController]
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
-{
-    private readonly IUserAccountService _userAccountService;
+{    private readonly IUserAccountService _userAccountService;
     private readonly IEmailVerificationService _emailVerificationService;
+    private readonly INotificationService _notificationService;
     private readonly ILogger<AuthController> _logger;
 
     public AuthController(
         IUserAccountService userAccountService,
         IEmailVerificationService emailVerificationService,
+        INotificationService notificationService,
         ILogger<AuthController> logger)
     {
         _userAccountService = userAccountService;
         _emailVerificationService = emailVerificationService;
+        _notificationService = notificationService;
         _logger = logger;
     }
 
@@ -134,9 +137,19 @@ public class AuthController : ControllerBase
             {
                 _logger.LogWarning("Registration data is null");
                 return BadRequest(new { message = "Registration data cannot be empty" });
+            }            var result = await _userAccountService.RegisterVerifiedUserAsync(registerDto);
+            
+            // Create welcome notification for new user
+            try
+            {
+                await _notificationService.CreateWelcomeNotificationAsync(result.User.Id);
             }
-
-            var result = await _userAccountService.RegisterVerifiedUserAsync(registerDto);
+            catch (Exception notificationEx)
+            {
+                _logger.LogWarning(notificationEx, "Failed to create welcome notification for new user {UserId}", result.User.Id);
+                // Don't fail the registration if notification creation fails
+            }
+            
             _logger.LogInformation("User registered successfully after verification: {Username}", registerDto.Username);
             return Ok(result);
         }
@@ -218,14 +231,25 @@ public class AuthController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Social login attempt with provider: {Provider}", socialLoginDto.Provider);
-
-            var loginResult = await _userAccountService.SocialLoginAsync(socialLoginDto);
+            _logger.LogInformation("Social login attempt with provider: {Provider}", socialLoginDto.Provider);            var loginResult = await _userAccountService.SocialLoginAsync(socialLoginDto);
 
             if (!loginResult.Success)
             {
                 _logger.LogWarning("Social login failed: {ErrorMessage}", loginResult.ErrorMessage);
                 return BadRequest(new { message = loginResult.ErrorMessage });
+            }
+
+            // Check if this was a new user registration through social login and create welcome notification
+            try
+            {
+                // You might want to modify SocialLoginAsync to return additional info about whether this was a new user
+                // For now, we'll attempt to create welcome notification and let the service handle duplicates
+                await _notificationService.CreateWelcomeNotificationAsync(loginResult.Result!.User.Id);
+            }
+            catch (Exception notificationEx)
+            {
+                _logger.LogWarning(notificationEx, "Failed to create welcome notification for social login user {UserId}", loginResult.Result!.User.Id);
+                // Don't fail the login if notification creation fails
             }
 
             _logger.LogInformation("Social login successful with provider: {Provider}", socialLoginDto.Provider);

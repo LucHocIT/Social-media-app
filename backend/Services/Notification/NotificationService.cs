@@ -34,9 +34,7 @@ namespace SocialApp.Services.Notification
                 {
                     return null;
                 }
-            }
-
-            var notification = new Models.Notification
+            }            var notification = new Models.Notification
             {
                 Type = (int)createDto.Type,
                 Content = createDto.Content,
@@ -45,7 +43,7 @@ namespace SocialApp.Services.Notification
                 PostId = createDto.PostId,
                 CommentId = createDto.CommentId,
                 IsRead = false,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.Now
             };
 
             _context.Notifications.Add(notification);
@@ -66,9 +64,7 @@ namespace SocialApp.Services.Notification
 
                 // Không tạo thông báo cho chính mình
                 if (dto.FromUserId.HasValue && dto.FromUserId.Value == dto.UserId)
-                    continue;
-
-                notifications.Add(new Models.Notification
+                    continue;                notifications.Add(new Models.Notification
                 {
                     Type = (int)dto.Type,
                     Content = dto.Content,
@@ -77,7 +73,7 @@ namespace SocialApp.Services.Notification
                     PostId = dto.PostId,
                     CommentId = dto.CommentId,
                     IsRead = false,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.Now
                 });
             }
 
@@ -149,11 +145,9 @@ namespace SocialApp.Services.Notification
             return await _context.Notifications
                 .Where(n => n.UserId == userId && !n.IsRead)
                 .CountAsync();
-        }
-
-        public async Task<NotificationStatsDto> GetNotificationStatsAsync(int userId)
+        }        public async Task<NotificationStatsDto> GetNotificationStatsAsync(int userId)
         {
-            var today = DateTime.UtcNow.Date;
+            var today = DateTime.Now.Date;
             var weekAgo = today.AddDays(-7);
 
             var notifications = await _context.Notifications

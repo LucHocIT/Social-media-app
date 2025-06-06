@@ -408,14 +408,13 @@ public class MessageService : IMessageService
 
             // Gửi thông báo qua SignalR
             try
-            {
-                await _hubContext.Clients.Group($"Conversation_{message.ConversationId}")
+            {                await _hubContext.Clients.Group($"Conversation_{message.ConversationId}")
                     .SendAsync("MessageDeleted", new
                     {
                         MessageId = messageId,
                         ConversationId = message.ConversationId,
                         DeletedBy = userId,
-                        Timestamp = DateTime.UtcNow
+                        Timestamp = DateTime.Now
                     });
             }
             catch (Exception ex)

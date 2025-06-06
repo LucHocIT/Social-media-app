@@ -47,14 +47,12 @@ public class UserBlockService : IUserBlockService
                 _logger.LogWarning("User {BlockerId} attempted to block user {BlockedUserId} who is already blocked", 
                     blockerId, requestDto.BlockedUserId);
                 return true; // Already blocked, consider it successful
-            }
-
-            // Create new block record
+            }            // Create new block record
             var userBlock = new UserBlock
             {
                 BlockerId = blockerId,
                 BlockedUserId = requestDto.BlockedUserId,
-                CreatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.Now,
                 Reason = requestDto.Reason
             };
 

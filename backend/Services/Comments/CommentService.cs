@@ -65,8 +65,7 @@ namespace SocialApp.Services.Comment
                         UserId = post.UserId,
                         FromUserId = userId,
                         PostId = post.Id,
-                        CommentId = comment.Id,
-                        Type = 1, // 1 = CommentOnPost
+                        CommentId = comment.Id,                        Type = 1, // 1 = CommentOnPost
                         Content = "commented on your post",
                         IsRead = false,
                         CreatedAt = DateTime.Now

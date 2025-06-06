@@ -231,25 +231,10 @@ public class AuthController : ControllerBase
     {
         try
         {
-            _logger.LogInformation("Social login attempt with provider: {Provider}", socialLoginDto.Provider);            var loginResult = await _userAccountService.SocialLoginAsync(socialLoginDto);
-
-            if (!loginResult.Success)
+            _logger.LogInformation("Social login attempt with provider: {Provider}", socialLoginDto.Provider);            var loginResult = await _userAccountService.SocialLoginAsync(socialLoginDto);            if (!loginResult.Success)
             {
                 _logger.LogWarning("Social login failed: {ErrorMessage}", loginResult.ErrorMessage);
                 return BadRequest(new { message = loginResult.ErrorMessage });
-            }
-
-            // Check if this was a new user registration through social login and create welcome notification
-            try
-            {
-                // You might want to modify SocialLoginAsync to return additional info about whether this was a new user
-                // For now, we'll attempt to create welcome notification and let the service handle duplicates
-                await _notificationService.CreateWelcomeNotificationAsync(loginResult.Result!.User.Id);
-            }
-            catch (Exception notificationEx)
-            {
-                _logger.LogWarning(notificationEx, "Failed to create welcome notification for social login user {UserId}", loginResult.Result!.User.Id);
-                // Don't fail the login if notification creation fails
             }
 
             _logger.LogInformation("Social login successful with provider: {Provider}", socialLoginDto.Provider);

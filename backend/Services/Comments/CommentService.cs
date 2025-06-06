@@ -54,43 +54,8 @@ namespace SocialApp.Services.Comment
                     Content = commentDto.Content,
                     CreatedAt = DateTime.Now,
                     UpdatedAt = DateTime.Now
-                };
-
-                _context.Comments.Add(comment);
+                };                _context.Comments.Add(comment);
                 await _context.SaveChangesAsync();
-
-                // Add notification to post author if not the same as commenter                if (post.UserId != userId)
-                {                    var notification = new Models.Notification
-                    {
-                        UserId = post.UserId,
-                        FromUserId = userId,
-                        PostId = post.Id,
-                        CommentId = comment.Id,                        Type = 1, // 1 = CommentOnPost
-                        Content = "commented on your post",
-                        IsRead = false,
-                        CreatedAt = DateTime.Now
-                    };
-                    _context.Notifications.Add(notification);
-                    await _context.SaveChangesAsync();
-                }                // Add notification to parent comment author if exists and not the same as commenter
-                if (commentDto.ParentCommentId.HasValue)
-                {
-                    var parentComment = await _context.Comments.FindAsync(commentDto.ParentCommentId.Value);                    if (parentComment != null && parentComment.UserId != userId)
-                    {                        var notification = new Models.Notification
-                        {
-                            UserId = parentComment.UserId,
-                            FromUserId = userId,
-                            PostId = post.Id,
-                            CommentId = comment.Id,
-                            Type = 2, // 2 = ReplyToComment
-                            Content = "replied to your comment",
-                            IsRead = false,
-                            CreatedAt = DateTime.Now
-                        };
-                        _context.Notifications.Add(notification);
-                        await _context.SaveChangesAsync();
-                    }
-                }
 
                 // Return the newly created comment with user information
                 return await GetCommentResponseDTOAsync(comment.Id, userId);
@@ -325,24 +290,7 @@ namespace SocialApp.Services.Comment
                         ReactionType = reactionDto.ReactionType,
                         CreatedAt = DateTime.Now
                     };
-                    
-                    _context.Reactions.Add(reaction);                    // Create notification if comment author is not the same as reactor
-                    if (comment.UserId != userId)
-                    {
-                        var notification = new Models.Notification
-                        {
-                            UserId = comment.UserId,
-                            FromUserId = userId,
-                            PostId = comment.PostId,
-                            CommentId = comment.Id,
-                            Type = 3, // 3 = ReactionOnComment
-                            Content = $"reacted to your comment with {reactionDto.ReactionType}",
-                            IsRead = false,
-                            CreatedAt = DateTime.Now
-                        };
-                        
-                        _context.Notifications.Add(notification);
-                    }
+                      _context.Reactions.Add(reaction);
                     
                     await _context.SaveChangesAsync();
                 }

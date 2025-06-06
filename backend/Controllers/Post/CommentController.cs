@@ -97,9 +97,7 @@ namespace SocialApp.Controllers.Post
                 return NotFound("Comment not found or you are not authorized to delete this comment");
 
             return NoContent();
-        }
-
-        [HttpPost("reaction")]
+        }        [HttpPost("reaction")]
         [Authorize]
         public async Task<ActionResult> AddReaction(CommentReactionDTO dto)
         {
@@ -108,6 +106,21 @@ namespace SocialApp.Controllers.Post
                 return Unauthorized();
                 
             var result = await _commentService.AddOrToggleReactionAsync(dto, userId);
+            
+            // Tạo thông báo cho chủ comment (nếu không phải chính mình và là thêm reaction mới)
+            if (result != null)
+            {
+                try
+                {
+                    await _notificationService.CreateCommentLikeNotificationAsync(dto.CommentId, userId);
+                }
+                catch
+                {
+                    // Log nhưng không throw exception để không ảnh hưởng đến việc tạo reaction
+                    // Notification failure shouldn't affect reaction creation
+                }
+            }
+            
             return Ok(result);
         }
 

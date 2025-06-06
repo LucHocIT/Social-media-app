@@ -43,13 +43,11 @@ public class MessageReactionService : IMessageReactionService
                 .FirstOrDefaultAsync(r => r.MessageId == reactionDto.MessageId && r.UserId == userId);
 
             if (existingReaction != null)
-            {
-                // Update existing reaction
+            {                // Update existing reaction
                 existingReaction.ReactionType = reactionDto.ReactionType;
-                existingReaction.CreatedAt = DateTime.UtcNow;
+                existingReaction.CreatedAt = DateTime.Now;
                 _context.MessageReactions.Update(existingReaction);
-            }
-            else
+            }            else
             {
                 // Create new reaction
                 var newReaction = new MessageReaction
@@ -57,7 +55,7 @@ public class MessageReactionService : IMessageReactionService
                     MessageId = reactionDto.MessageId,
                     UserId = userId,
                     ReactionType = reactionDto.ReactionType,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.Now
                 };
 
                 _context.MessageReactions.Add(newReaction);
@@ -239,12 +237,11 @@ public class MessageReactionService : IMessageReactionService
                     _context.MessageReactions.Remove(existingReaction);
                     await _context.SaveChangesAsync();
                     return false; // Reaction removed
-                }
-                else
+                }                else
                 {
                     // Different reaction type - update it
                     existingReaction.ReactionType = reactionDto.ReactionType;
-                    existingReaction.CreatedAt = DateTime.UtcNow;
+                    existingReaction.CreatedAt = DateTime.Now;
                     _context.MessageReactions.Update(existingReaction);
                     await _context.SaveChangesAsync();
                     return true; // Reaction updated

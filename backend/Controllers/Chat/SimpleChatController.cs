@@ -339,8 +339,7 @@ public class SimpleChatController : ControllerBase
             var message = await _context.SimpleMessages
                 .Include(m => m.Conversation)
                 .FirstOrDefaultAsync(m => m.Id == messageId);
-            
-            if (message != null)
+              if (message != null)
             {
                 // Broadcast reaction added event to conversation members
                 await _hubContext.Clients.Group($"Conversation_{message.ConversationId}")
@@ -351,7 +350,7 @@ public class SimpleChatController : ControllerBase
                         UserId = currentUserId.Value,
                         UserName = $"{result.FirstName} {result.LastName}".Trim(),
                         Username = result.Username,
-                        Timestamp = DateTime.UtcNow
+                        Timestamp = DateTime.Now
                     });
             }
 
@@ -391,14 +390,13 @@ public class SimpleChatController : ControllerBase
 
             // Broadcast reaction removed event to conversation members
             if (existingReaction != null)
-            {
-                await _hubContext.Clients.Group($"Conversation_{existingReaction.Message.ConversationId}")
+            {                await _hubContext.Clients.Group($"Conversation_{existingReaction.Message.ConversationId}")
                     .SendAsync("ReactionRemoved", new
                     {
                         MessageId = messageId,
                         ReactionType = existingReaction.ReactionType,
                         UserId = currentUserId.Value,
-                        Timestamp = DateTime.UtcNow
+                        Timestamp = DateTime.Now
                     });
             }
 
@@ -443,8 +441,7 @@ public class SimpleChatController : ControllerBase
                 var user = await _context.Users.FindAsync(currentUserId.Value);
 
                 if (result) // Reaction was added
-                {
-                    await _hubContext.Clients.Group($"Conversation_{message.ConversationId}")
+                {                    await _hubContext.Clients.Group($"Conversation_{message.ConversationId}")
                         .SendAsync("ReactionAdded", new
                         {
                             MessageId = messageId,
@@ -452,20 +449,19 @@ public class SimpleChatController : ControllerBase
                             UserId = currentUserId.Value,
                             UserName = user != null ? $"{user.FirstName} {user.LastName}".Trim() : "",
                             ConversationId = message.ConversationId,
-                            Timestamp = DateTime.UtcNow,
+                            Timestamp = DateTime.Now,
                             ReactionSummary = reactionSummary
                         });
                 }
                 else // Reaction was removed
-                {
-                    await _hubContext.Clients.Group($"Conversation_{message.ConversationId}")
+                {                    await _hubContext.Clients.Group($"Conversation_{message.ConversationId}")
                         .SendAsync("ReactionRemoved", new
                         {
                             MessageId = messageId,
                             ReactionType = existingReaction?.ReactionType ?? reactionDto.ReactionType,
                             UserId = currentUserId.Value,
                             ConversationId = message.ConversationId,
-                            Timestamp = DateTime.UtcNow,
+                            Timestamp = DateTime.Now,
                             ReactionSummary = reactionSummary
                         });
                 }

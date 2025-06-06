@@ -13,11 +13,10 @@ public class MessageReaction
     public int MessageId { get; set; }
     
     public int UserId { get; set; }
-    
-    [StringLength(50)]
+      [StringLength(50)]
     public string ReactionType { get; set; } = "like"; // like, love, haha, wow, sad, angry, thumbs_up, thumbs_down
     
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime CreatedAt { get; set; } = DateTime.Now;
 
     // Navigation properties
     [ForeignKey("MessageId")]

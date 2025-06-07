@@ -166,12 +166,12 @@ public class ProfileController : ControllerBase
             bool result = await _profileService.FollowUserAsync(currentUserId, userId);            if (!result)
             {
                 return BadRequest(new { message = "Failed to follow user. User may not exist or you may already be following them." });
-            }
-
-            // Create follow notification
+            }            // Create follow notification
             try
             {
-                await _notificationService.CreateFollowNotificationAsync(currentUserId, userId);
+                // userId (person being followed) should receive the notification
+                // currentUserId (person doing the following) is the one performing the action
+                await _notificationService.CreateFollowNotificationAsync(userId, currentUserId);
             }
             catch (Exception notificationEx)
             {

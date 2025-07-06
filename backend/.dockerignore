@@ -1,0 +1,14 @@
+# Docker ignore file for backend
+bin/
+obj/
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+.DS_Store
+Thumbs.db
+logs/
+*.log

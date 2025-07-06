@@ -1,0 +1,64 @@
+services:
+  # SQL Server Database
+  database:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: socialapp-database
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong@Password123
+      - MSSQL_PID=Express
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    networks:
+      - socialapp-network
+    restart: unless-stopped
+  # Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: socialapp-backend
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:5063
+      - ConnectionStrings__DefaultConnection=Server=host.docker.internal\\MSPML;Database=SocialMediaDB;User Id=sa;Password=0354337494;MultipleActiveResultSets=true;TrustServerCertificate=True
+      - JwtSettings__SecretKey=YourSuperSecretJwtKeyThatIsAtLeast32CharactersLong
+      - JwtSettings__Issuer=SocialApp
+      - JwtSettings__Audience=SocialAppUsers
+      - JwtSettings__ExpiryInMinutes=60
+    ports:
+      - "5063:5063"
+    networks:
+      - socialapp-network
+    restart: unless-stopped
+    volumes:
+      - backend_logs:/app/logs
+    # Cho phép container truy cập host network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: socialapp-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - socialapp-network
+    restart: unless-stopped
+
+volumes:
+  mssql_data:
+    driver: local
+  backend_logs:
+    driver: local
+
+networks:
+  socialapp-network:
+    driver: bridge

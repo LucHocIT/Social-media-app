@@ -1,0 +1,62 @@
+services:
+  - type: web
+    name: socialapp-backend
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: singapore
+    branch: main
+    buildCommand: ""
+    startCommand: ""
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://+:5000
+      - key: ConnectionStrings__DefaultConnection
+        fromDatabase:
+          name: socialapp-db
+          property: connectionString
+      - key: Jwt__Key
+        generateValue: true
+      - key: Jwt__Issuer
+        value: SocialApp
+      - key: Jwt__Audience
+        value: SocialAppUsers
+      - key: Jwt__ExpireDays
+        value: "7"
+      - key: EmailSettings__SmtpServer
+        value: smtp.gmail.com
+      - key: EmailSettings__SmtpPort
+        value: "587"
+      - key: EmailSettings__Username
+        sync: false
+      - key: EmailSettings__Password
+        sync: false
+      - key: EmailSettings__SenderEmail
+        sync: false
+      - key: EmailSettings__SenderName
+        value: SocialApp
+      - key: EmailSettings__UseSsl
+        value: "true"
+      - key: Cloudinary__CloudName
+        sync: false
+      - key: Cloudinary__ApiKey
+        sync: false
+      - key: Cloudinary__ApiSecret
+        sync: false
+      - key: Authentication__Facebook__AppId
+        sync: false
+      - key: Authentication__Facebook__AppSecret
+        sync: false
+      - key: Authentication__Google__ClientId
+        sync: false
+      - key: Authentication__Google__ClientSecret
+        sync: false
+
+databases:
+  - name: socialapp-db
+    databaseName: SocialMediaDB
+    user: socialapp_user
+    plan: free
+    region: singapore

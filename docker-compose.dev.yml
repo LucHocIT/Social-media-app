@@ -1,0 +1,70 @@
+services:
+  # SQL Server Database
+  database:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: socialapp-database-dev
+    environment:
+      - ACCEPT_EULA=Y
+      - SA_PASSWORD=YourStrong@Password123
+      - MSSQL_PID=Express
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data_dev:/var/opt/mssql
+    networks:
+      - socialapp-network-dev
+    restart: unless-stopped
+
+  # Backend API (Development)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: socialapp-backend-dev
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_URLS=http://+:5000
+      - ConnectionStrings__DefaultConnection=Server=database,1433;Database=SocialAppDB;User Id=sa;Password=YourStrong@Password123;TrustServerCertificate=true;
+      - JwtSettings__SecretKey=YourSuperSecretJwtKeyThatIsAtLeast32CharactersLong
+      - JwtSettings__Issuer=SocialApp
+      - JwtSettings__Audience=SocialAppUsers
+      - JwtSettings__ExpiryInMinutes=60
+    ports:
+      - "5000:5000"
+    depends_on:
+      - database
+    networks:
+      - socialapp-network-dev
+    restart: unless-stopped
+    volumes:
+      - ./backend:/src
+      - backend_logs_dev:/app/logs
+
+  # Frontend (Development with hot reload)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
+    container_name: socialapp-frontend-dev
+    environment:
+      - VITE_API_BASE_URL=http://localhost:5000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - socialapp-network-dev
+    restart: unless-stopped
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  mssql_data_dev:
+    driver: local
+  backend_logs_dev:
+    driver: local
+
+networks:
+  socialapp-network-dev:
+    driver: bridge

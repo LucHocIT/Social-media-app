@@ -18,6 +18,7 @@ using SocialApp.Services.Chat;
 using SocialApp.Hubs;
 using SocialApp.Filters;
 using Microsoft.OpenApi.Models;
+using Npgsql;
 
 // Load .env file if it exists (this should be before creating the builder)
 DotEnv.Load(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
@@ -78,7 +79,13 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend",
         builder => builder
-            .WithOrigins("http://localhost:3000", "https://localhost:3000")
+            .WithOrigins(
+                "http://localhost:3000", 
+                "https://localhost:3000",
+                "http://frontend:80",
+                "http://host.docker.internal:3000",
+                "https://socailapp-j7s9.onrender.com"
+            )
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials()); // Important for SignalR
@@ -87,11 +94,23 @@ builder.Services.AddCors(options =>
 // DbContext
 builder.Services.AddDbContext<SocialMediaDbContext>(options =>
 {
-    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection"));    options.ConfigureWarnings(warnings =>
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    
+    if (!string.IsNullOrEmpty(connectionString) && (connectionString.Contains("postgres") || connectionString.Contains("postgresql")))
     {
-        warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.MultipleCollectionIncludeWarning);
-        warnings.Ignore(SqlServerEventId.SavepointsDisabledBecauseOfMARS);
-    });
+        // Use PostgreSQL for production (Render)
+        options.UseNpgsql(connectionString);
+    }
+    else
+    {
+        // Use SQL Server for development
+        options.UseSqlServer(connectionString);
+        options.ConfigureWarnings(warnings =>
+        {
+            warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.MultipleCollectionIncludeWarning);
+            warnings.Ignore(SqlServerEventId.SavepointsDisabledBecauseOfMARS);
+        });
+    }
 });
 
 // Register services

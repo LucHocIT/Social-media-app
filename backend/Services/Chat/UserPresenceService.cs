@@ -41,10 +41,11 @@ public class UserPresenceService : BackgroundService
     private async Task CheckUserPresence()
     {
         using var scope = _serviceProvider.CreateScope();
-        var context = scope.ServiceProvider.GetRequiredService<SocialMediaDbContext>();
-
+        
         try
         {
+            var context = scope.ServiceProvider.GetRequiredService<SocialMediaDbContext>();
+            
             var oneMinuteAgo = DateTime.Now.AddMinutes(-1);
             
             // Tìm users đã offline (LastActive > 1 phút trước)
@@ -66,7 +67,8 @@ public class UserPresenceService : BackgroundService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error updating user presence");
+            _logger.LogError(ex, "Error updating user presence in CheckUserPresence");
+            throw; // Re-throw to let the main ExecuteAsync method handle it
         }
     }
 }

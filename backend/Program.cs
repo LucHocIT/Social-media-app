@@ -25,6 +25,15 @@ DotEnv.Load(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Configure NpgsqlDataSource for PostgreSQL connections
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (!string.IsNullOrEmpty(connectionString) && (connectionString.Contains("postgres") || connectionString.Contains("postgresql")))
+{
+    // Register NpgsqlDataSource for better connection pooling
+    var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+    builder.Services.AddSingleton(dataSourceBuilder.Build());
+}
+
 // Add services to the container.
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -99,7 +108,14 @@ builder.Services.AddDbContext<SocialMediaDbContext>(options =>
     if (!string.IsNullOrEmpty(connectionString) && (connectionString.Contains("postgres") || connectionString.Contains("postgresql")))
     {
         // Use PostgreSQL for production (Render)
-        options.UseNpgsql(connectionString);
+        options.UseNpgsql(connectionString, npgsqlOptions =>
+        {
+            npgsqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 5,
+                maxRetryDelay: TimeSpan.FromSeconds(30),
+                errorCodesToAdd: null
+            );
+        });
     }
     else
     {
@@ -110,6 +126,14 @@ builder.Services.AddDbContext<SocialMediaDbContext>(options =>
             warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.MultipleCollectionIncludeWarning);
             warnings.Ignore(SqlServerEventId.SavepointsDisabledBecauseOfMARS);
         });
+    }
+    
+    // Add logging for debugging in development only
+    if (builder.Environment.IsDevelopment())
+    {
+        options.LogTo(Console.WriteLine, LogLevel.Information);
+        options.EnableSensitiveDataLogging(false);
+        options.EnableDetailedErrors(true);
     }
 });
 

@@ -164,8 +164,17 @@ builder.Services.AddScoped<IMessageReactionService, MessageReactionService>();
 // Notification services
 builder.Services.AddScoped<SocialApp.Services.Notification.INotificationService, SocialApp.Services.Notification.NotificationService>();
 
-// User presence service
-builder.Services.AddHostedService<UserPresenceService>();
+// User presence service - can be disabled via configuration
+var enableUserPresence = builder.Configuration.GetValue("EnableUserPresence", true);
+if (enableUserPresence)
+{
+    builder.Services.AddHostedService<UserPresenceService>();
+}
+else
+{
+    var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger("Program");
+    logger.LogInformation("UserPresenceService is disabled via configuration");
+}
 
 // SignalR
 builder.Services.AddSignalR();

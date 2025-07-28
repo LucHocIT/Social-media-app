@@ -35,7 +35,12 @@ builder.Configuration.AddEnvironmentVariables();
 
 // Debug: Log environment check
 Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}");
-Console.WriteLine($"DATABASE_URL exists: {!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DATABASE_URL"))}");
+Console.WriteLine($"DB_CONNECTION_STRING exists: {!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DB_CONNECTION_STRING"))}");
+
+// List DB environment variables for debugging
+Console.WriteLine("DB environment variables:");
+var dbConnectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+Console.WriteLine($"  DB_CONNECTION_STRING: {(string.IsNullOrEmpty(dbConnectionString) ? "NOT SET" : "SET")}");
 Console.WriteLine($"DB_CONNECTION_STRING exists: {!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DB_CONNECTION_STRING"))}");
 
 // Debug: List all environment variables starting with DB
@@ -49,92 +54,19 @@ foreach (DictionaryEntry env in Environment.GetEnvironmentVariables())
     }
 }
 
-// Function to convert PostgreSQL URL to connection string
-string ConvertPostgresUrlToConnectionString(string databaseUrl)
-{
-    try
-    {
-        Console.WriteLine($"Original DATABASE_URL: {databaseUrl}");
-        
-        var uri = new Uri(databaseUrl);
-        var host = uri.Host;
-        var port = uri.Port;
-        var database = uri.AbsolutePath.TrimStart('/');
-        
-        // Handle userInfo more carefully for special characters
-        var userInfo = uri.UserInfo.Split(':');
-        var username = Uri.UnescapeDataString(userInfo[0]);
-        var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
-
-        // Build connection string with proper escaping
-        var connectionString = $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true;Timeout=30;Command Timeout=30;";
-        
-        Console.WriteLine($"Parsed connection - Host: {host}, Port: {port}, Database: {database}, Username: {username}");
-        Console.WriteLine($"Password length: {password.Length} characters");
-        Console.WriteLine($"Password first 4 chars: {password.Substring(0, Math.Min(4, password.Length))}");
-        Console.WriteLine($"Password last 4 chars: {password.Substring(Math.Max(0, password.Length - 4))}");
-        Console.WriteLine($"Connection string built successfully");
-        
-        return connectionString;
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Error parsing DATABASE_URL: {ex.Message}");
-        Console.WriteLine($"DATABASE_URL value: {databaseUrl}");
-        throw;
-    }
-}
-
-// Configure NpgsqlDataSource for PostgreSQL connections
+// Get database connection string - simplified to only use DB_CONNECTION_STRING
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
-// Try to get connection string from environment variable if not found in config
 if (string.IsNullOrEmpty(connectionString))
 {
-    // Try DATABASE_URL first
-    var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
-    
-    // If DATABASE_URL not found, try DB_CONNECTION_STRING
-    if (string.IsNullOrEmpty(databaseUrl))
+    connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+    if (!string.IsNullOrEmpty(connectionString))
     {
-        databaseUrl = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
-        Console.WriteLine($"Trying DB_CONNECTION_STRING: {!string.IsNullOrEmpty(databaseUrl)}");
-    }
-    
-    if (!string.IsNullOrEmpty(databaseUrl))
-    {
-        Console.WriteLine($"Found connection string from environment variable");
-        
-        if (databaseUrl.StartsWith("postgresql://") || databaseUrl.StartsWith("postgres://"))
-        {
-            connectionString = ConvertPostgresUrlToConnectionString(databaseUrl);
-            Console.WriteLine("Converted DATABASE_URL to connection string format");
-        }
-        else
-        {
-            connectionString = databaseUrl;
-            Console.WriteLine("Using connection string as-is");
-        }
+        Console.WriteLine("Using DB_CONNECTION_STRING from environment variable");
     }
     else
     {
-        Console.WriteLine("WARNING: No database connection string environment variable found!");
-        Console.WriteLine("Checked: DATABASE_URL, DB_CONNECTION_STRING");
-    }
-}
-
-// If still empty, try to build from individual env vars (for development)
-if (string.IsNullOrEmpty(connectionString))
-{
-    var host = Environment.GetEnvironmentVariable("DB_HOST");
-    var database = Environment.GetEnvironmentVariable("DB_DATABASE");
-    var username = Environment.GetEnvironmentVariable("DB_USER");
-    var password = Environment.GetEnvironmentVariable("DB_PASSWORD");
-    
-    if (!string.IsNullOrEmpty(host) && !string.IsNullOrEmpty(database))
-    {
-        connectionString = $"Host={host};Database={database};Username={username};Password={password};";
-        Console.WriteLine("Built connection string from individual env vars");
+        Console.WriteLine("ERROR: DB_CONNECTION_STRING environment variable is not set!");
     }
 }
 
@@ -246,26 +178,15 @@ builder.Services.AddDbContext<SocialMediaDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     
-    // Try environment variable if config is empty and convert if needed
+    // Use DB_CONNECTION_STRING environment variable  
     if (string.IsNullOrEmpty(connectionString))
     {
-        var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
-        if (!string.IsNullOrEmpty(databaseUrl))
-        {
-            if (databaseUrl.StartsWith("postgresql://") || databaseUrl.StartsWith("postgres://"))
-            {
-                connectionString = ConvertPostgresUrlToConnectionString(databaseUrl);
-            }
-            else
-            {
-                connectionString = databaseUrl;
-            }
-        }
+        connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
     }
     
-    if (!string.IsNullOrEmpty(connectionString) && (connectionString.Contains("postgres") || connectionString.Contains("postgresql")))
+    if (!string.IsNullOrEmpty(connectionString))
     {
-        // Use PostgreSQL for production (Render)
+        // Use PostgreSQL
         options.UseNpgsql(connectionString, npgsqlOptions =>
         {
             npgsqlOptions.EnableRetryOnFailure(
@@ -274,20 +195,11 @@ builder.Services.AddDbContext<SocialMediaDbContext>(options =>
                 errorCodesToAdd: null
             );
         });
-    }
-    else if (!string.IsNullOrEmpty(connectionString))
-    {
-        // Use SQL Server for development
-        options.UseSqlServer(connectionString);
-        options.ConfigureWarnings(warnings =>
-        {
-            warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.MultipleCollectionIncludeWarning);
-            warnings.Ignore(SqlServerEventId.SavepointsDisabledBecauseOfMARS);
-        });
+        Console.WriteLine("Database configured with PostgreSQL");
     }
     else
     {
-        throw new InvalidOperationException("Database connection string is required. Please set DATABASE_URL environment variable or DefaultConnection in appsettings.");
+        throw new InvalidOperationException("Database connection string is required. Please set DB_CONNECTION_STRING environment variable.");
     }
     
     // Add logging for debugging in development only

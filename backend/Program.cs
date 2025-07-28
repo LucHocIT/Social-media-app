@@ -41,6 +41,8 @@ string ConvertPostgresUrlToConnectionString(string databaseUrl)
 {
     try
     {
+        Console.WriteLine($"Original DATABASE_URL: {databaseUrl}");
+        
         var uri = new Uri(databaseUrl);
         var host = uri.Host;
         var port = uri.Port;
@@ -51,16 +53,19 @@ string ConvertPostgresUrlToConnectionString(string databaseUrl)
         var username = Uri.UnescapeDataString(userInfo[0]);
         var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
 
-        var connectionString = $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true;";
+        // Build connection string with proper escaping
+        var connectionString = $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true;Timeout=30;Command Timeout=30;";
         
         Console.WriteLine($"Parsed connection - Host: {host}, Port: {port}, Database: {database}, Username: {username}");
         Console.WriteLine($"Password length: {password.Length} characters");
+        Console.WriteLine($"Connection string built successfully");
         
         return connectionString;
     }
     catch (Exception ex)
     {
         Console.WriteLine($"Error parsing DATABASE_URL: {ex.Message}");
+        Console.WriteLine($"DATABASE_URL value: {databaseUrl}");
         throw;
     }
 }

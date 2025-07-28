@@ -45,11 +45,18 @@ string ConvertPostgresUrlToConnectionString(string databaseUrl)
         var host = uri.Host;
         var port = uri.Port;
         var database = uri.AbsolutePath.TrimStart('/');
+        
+        // Handle userInfo more carefully for special characters
         var userInfo = uri.UserInfo.Split(':');
-        var username = userInfo[0];
-        var password = userInfo.Length > 1 ? userInfo[1] : "";
+        var username = Uri.UnescapeDataString(userInfo[0]);
+        var password = userInfo.Length > 1 ? Uri.UnescapeDataString(userInfo[1]) : "";
 
-        return $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true;";
+        var connectionString = $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true;";
+        
+        Console.WriteLine($"Parsed connection - Host: {host}, Port: {port}, Database: {database}, Username: {username}");
+        Console.WriteLine($"Password length: {password.Length} characters");
+        
+        return connectionString;
     }
     catch (Exception ex)
     {
@@ -73,12 +80,17 @@ if (string.IsNullOrEmpty(connectionString))
         {
             connectionString = ConvertPostgresUrlToConnectionString(databaseUrl);
             Console.WriteLine("Converted DATABASE_URL to connection string format");
+            Console.WriteLine($"Final connection string: {connectionString.Substring(0, Math.Min(100, connectionString.Length))}...");
         }
         else
         {
             connectionString = databaseUrl;
             Console.WriteLine("Using DATABASE_URL as-is");
         }
+    }
+    else
+    {
+        Console.WriteLine("WARNING: DATABASE_URL environment variable is empty or not set!");
     }
 }
 
@@ -444,8 +456,13 @@ void SeedDatabase(SocialMediaDbContext context, IConfiguration configuration)
 {
     try
     {
-        // Ensure database exists
-        context.Database.EnsureCreated();
+        // Test connection first
+        if (!context.Database.CanConnect())
+        {
+            var logger = app.Services.GetRequiredService<ILogger<Program>>();
+            logger.LogWarning("Cannot connect to database. Skipping seeding.");
+            return;
+        }
 
         // Check if there are pending migrations
         var pendingMigrations = context.Database.GetPendingMigrations().ToList();
@@ -459,33 +476,34 @@ void SeedDatabase(SocialMediaDbContext context, IConfiguration configuration)
             // Apply pending migrations
             context.Database.Migrate();
         }
+        
+        // Create admin user if it doesn't exist
+        if (!context.Users.Any(u => u.Username == "admin"))
+        {
+            var adminUser = new User
+            {
+                Username = "admin",
+                Email = "admin@example.com",
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
+                FirstName = "Admin",
+                LastName = "User",
+                Role = "Admin",
+                CreatedAt = DateTime.Now,
+                LastActive = DateTime.Now
+            };
+
+            context.Users.Add(adminUser);
+            context.SaveChanges();
+
+            var logger = app.Services.GetRequiredService<ILogger<Program>>();
+            logger.LogInformation("Admin user created successfully");
+        }
     }
     catch (Exception ex)
     {
-        // Migrations might already be applied
+        // Don't crash the app if seeding fails
         var logger = app.Services.GetRequiredService<ILogger<Program>>();
-        logger.LogWarning(ex, "An error occurred during migration. Database might already be up to date.");
-    }
-
-    // Create admin user if it doesn't exist
-    if (!context.Users.Any(u => u.Username == "admin"))
-    {
-        var adminUser = new User
-        {
-            Username = "admin",
-            Email = "admin@example.com",            PasswordHash = BCrypt.Net.BCrypt.HashPassword("Admin@123"),
-            FirstName = "Admin",
-            LastName = "User",
-            Role = "Admin",
-            CreatedAt = DateTime.Now,
-            LastActive = DateTime.Now
-        };
-
-        context.Users.Add(adminUser);
-        context.SaveChanges();
-
-        var logger = app.Services.GetRequiredService<ILogger<Program>>();
-        logger.LogInformation("Admin user created successfully");
+        logger.LogWarning(ex, "Database seeding failed. This is not critical for API operation.");
     }
 }
 

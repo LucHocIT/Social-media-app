@@ -107,7 +107,9 @@ builder.Services.AddCors(options =>
                 "https://localhost:3000",
                 "http://frontend:80",
                 "http://host.docker.internal:3000",
-                "https://socailapp-j7s9.onrender.com"
+                "https://socailapp-j7s9.onrender.com",
+                "https://socialapp-backend.onrender.com",
+                "https://socialapp-frontend.onrender.com"
             )
             .AllowAnyMethod()
             .AllowAnyHeader()

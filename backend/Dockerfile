@@ -1,7 +1,7 @@
 # Use the official .NET 8.0 runtime as a parent image
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
-EXPOSE 5000
+EXPOSE 10000
 
 # Use the SDK image to build the app
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
@@ -21,7 +21,7 @@ COPY --from=publish /app/publish .
 
 # Set environment variables for production
 ENV ASPNETCORE_ENVIRONMENT=Production
-ENV ASPNETCORE_URLS=http://+:5000
+ENV ASPNETCORE_URLS=http://+:10000
 
 # Create a non-root user
 RUN adduser --disabled-password --gecos '' appuser && chown -R appuser /app

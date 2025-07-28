@@ -430,10 +430,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 var app = builder.Build();
 
 // Configure the HTTP pipeline
+// Enable Swagger for both Development and Production (for testing purposes)
+app.UseSwagger();
+app.UseSwaggerUI(c => 
+{
+    c.SwaggerEndpoint("/swagger/v1/swagger.json", "Social App API v1");
+    c.RoutePrefix = "swagger"; // Set Swagger UI at /swagger
+});
+
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Social App API v1"));
     // Use more permissive CORS in development
     app.UseCors("DevelopmentCors");
 }

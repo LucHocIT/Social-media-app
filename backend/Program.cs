@@ -20,13 +20,21 @@ using SocialApp.Filters;
 using Microsoft.OpenApi.Models;
 using Npgsql;
 
-// Load .env file if it exists (this should be before creating the builder)
-DotEnv.Load(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
+// Load .env file if it exists (only in development)
+var envFile = Path.Combine(Directory.GetCurrentDirectory(), ".env");
+if (File.Exists(envFile))
+{
+    DotEnv.Load(envFile);
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add configuration from environment variables
 builder.Configuration.AddEnvironmentVariables();
+
+// Debug: Log environment check
+Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}");
+Console.WriteLine($"DATABASE_URL exists: {!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DATABASE_URL"))}");
 
 // Configure NpgsqlDataSource for PostgreSQL connections
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -35,6 +43,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 if (string.IsNullOrEmpty(connectionString))
 {
     connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
+    Console.WriteLine($"Using DATABASE_URL from environment: {!string.IsNullOrEmpty(connectionString)}");
 }
 
 // If still empty, try to build from individual env vars (for development)
@@ -48,19 +57,23 @@ if (string.IsNullOrEmpty(connectionString))
     if (!string.IsNullOrEmpty(host) && !string.IsNullOrEmpty(database))
     {
         connectionString = $"Host={host};Database={database};Username={username};Password={password};";
+        Console.WriteLine("Built connection string from individual env vars");
     }
 }
 
 if (!string.IsNullOrEmpty(connectionString) && (connectionString.Contains("postgres") || connectionString.Contains("postgresql")))
 {
+    Console.WriteLine("Using PostgreSQL connection");
     // Register NpgsqlDataSource for better connection pooling
     try
     {
         var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
         builder.Services.AddSingleton(dataSourceBuilder.Build());
+        Console.WriteLine("NpgsqlDataSource configured successfully");
     }
     catch (Exception ex)
     {
+        Console.WriteLine($"Error configuring NpgsqlDataSource: {ex.Message}");
         throw new InvalidOperationException($"Invalid PostgreSQL connection string format: {ex.Message}");
     }
 }
@@ -71,6 +84,7 @@ else if (!string.IsNullOrEmpty(connectionString))
 }
 else
 {
+    Console.WriteLine("ERROR: No database connection string found!");
     throw new InvalidOperationException("Database connection string is required. Please set DATABASE_URL environment variable or configure DefaultConnection in appsettings.");
 }
 

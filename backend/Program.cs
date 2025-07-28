@@ -197,10 +197,21 @@ builder.Services.AddDbContext<SocialMediaDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     
-    // Try environment variable if config is empty
+    // Try environment variable if config is empty and convert if needed
     if (string.IsNullOrEmpty(connectionString))
     {
-        connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
+        var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+        if (!string.IsNullOrEmpty(databaseUrl))
+        {
+            if (databaseUrl.StartsWith("postgresql://") || databaseUrl.StartsWith("postgres://"))
+            {
+                connectionString = ConvertPostgresUrlToConnectionString(databaseUrl);
+            }
+            else
+            {
+                connectionString = databaseUrl;
+            }
+        }
     }
     
     if (!string.IsNullOrEmpty(connectionString) && (connectionString.Contains("postgres") || connectionString.Contains("postgresql")))

@@ -36,14 +36,50 @@ builder.Configuration.AddEnvironmentVariables();
 Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}");
 Console.WriteLine($"DATABASE_URL exists: {!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DATABASE_URL"))}");
 
+// Function to convert PostgreSQL URL to connection string
+string ConvertPostgresUrlToConnectionString(string databaseUrl)
+{
+    try
+    {
+        var uri = new Uri(databaseUrl);
+        var host = uri.Host;
+        var port = uri.Port;
+        var database = uri.AbsolutePath.TrimStart('/');
+        var userInfo = uri.UserInfo.Split(':');
+        var username = userInfo[0];
+        var password = userInfo.Length > 1 ? userInfo[1] : "";
+
+        return $"Host={host};Port={port};Database={database};Username={username};Password={password};SSL Mode=Require;Trust Server Certificate=true;";
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Error parsing DATABASE_URL: {ex.Message}");
+        throw;
+    }
+}
+
 // Configure NpgsqlDataSource for PostgreSQL connections
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
 // Try to get connection string from environment variable if not found in config
 if (string.IsNullOrEmpty(connectionString))
 {
-    connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
-    Console.WriteLine($"Using DATABASE_URL from environment: {!string.IsNullOrEmpty(connectionString)}");
+    var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+    if (!string.IsNullOrEmpty(databaseUrl))
+    {
+        Console.WriteLine($"Raw DATABASE_URL: {databaseUrl.Substring(0, Math.Min(50, databaseUrl.Length))}...");
+        
+        if (databaseUrl.StartsWith("postgresql://") || databaseUrl.StartsWith("postgres://"))
+        {
+            connectionString = ConvertPostgresUrlToConnectionString(databaseUrl);
+            Console.WriteLine("Converted DATABASE_URL to connection string format");
+        }
+        else
+        {
+            connectionString = databaseUrl;
+            Console.WriteLine("Using DATABASE_URL as-is");
+        }
+    }
 }
 
 // If still empty, try to build from individual env vars (for development)

@@ -195,6 +195,10 @@ builder.Services.AddDbContext<SocialMediaDbContext>(options =>
                 errorCodesToAdd: null
             );
         });
+        
+        // Configure PostgreSQL to handle DateTime correctly
+        AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
+        
         Console.WriteLine("Database configured with PostgreSQL");
     }
     else
@@ -456,17 +460,38 @@ void SeedDatabase(SocialMediaDbContext context, IConfiguration configuration)
             return;
         }
 
-        // Check if there are pending migrations
-        var pendingMigrations = context.Database.GetPendingMigrations().ToList();
-        if (pendingMigrations.Any())
+        // Ensure database is created and apply migrations
+        try 
         {
-            var logger = app.Services.GetRequiredService<ILogger<Program>>();
-            logger.LogInformation("Applying {0} pending migrations: {1}",
-                pendingMigrations.Count,
-                string.Join(", ", pendingMigrations));
+            Console.WriteLine("Checking database and applying migrations...");
+            
+            // Ensure database exists
+            context.Database.EnsureCreated();
+            
+            // Check if there are pending migrations
+            var pendingMigrations = context.Database.GetPendingMigrations().ToList();
+            if (pendingMigrations.Any())
+            {
+                var logger = app.Services.GetRequiredService<ILogger<Program>>();
+                logger.LogInformation("Applying {0} pending migrations: {1}",
+                    pendingMigrations.Count,
+                    string.Join(", ", pendingMigrations));
 
-            // Apply pending migrations
-            context.Database.Migrate();
+                // Apply pending migrations
+                context.Database.Migrate();
+            }
+            else
+            {
+                Console.WriteLine("No pending migrations found");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Database migration failed: {ex.Message}");
+            Console.WriteLine("Using EnsureCreated as fallback...");
+            
+            // Fallback: Just ensure database and tables exist
+            context.Database.EnsureCreated();
         }
         
         // Create admin user if it doesn't exist

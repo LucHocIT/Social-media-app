@@ -27,11 +27,22 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Configure NpgsqlDataSource for PostgreSQL connections
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+
+// Try to get connection string from environment variable if not found in config
+if (string.IsNullOrEmpty(connectionString))
+{
+    connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
+}
+
 if (!string.IsNullOrEmpty(connectionString) && (connectionString.Contains("postgres") || connectionString.Contains("postgresql")))
 {
     // Register NpgsqlDataSource for better connection pooling
     var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
     builder.Services.AddSingleton(dataSourceBuilder.Build());
+}
+else
+{
+    throw new InvalidOperationException("PostgreSQL connection string is required. Please set DATABASE_URL environment variable or DefaultConnection in appsettings.");
 }
 
 // Add services to the container.

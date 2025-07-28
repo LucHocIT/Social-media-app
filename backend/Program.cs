@@ -25,6 +25,9 @@ DotEnv.Load(Path.Combine(Directory.GetCurrentDirectory(), ".env"));
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add configuration from environment variables
+builder.Configuration.AddEnvironmentVariables();
+
 // Configure NpgsqlDataSource for PostgreSQL connections
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 
@@ -116,6 +119,12 @@ builder.Services.AddDbContext<SocialMediaDbContext>(options =>
 {
     var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
     
+    // Try environment variable if config is empty
+    if (string.IsNullOrEmpty(connectionString))
+    {
+        connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
+    }
+    
     if (!string.IsNullOrEmpty(connectionString) && (connectionString.Contains("postgres") || connectionString.Contains("postgresql")))
     {
         // Use PostgreSQL for production (Render)
@@ -128,7 +137,7 @@ builder.Services.AddDbContext<SocialMediaDbContext>(options =>
             );
         });
     }
-    else
+    else if (!string.IsNullOrEmpty(connectionString))
     {
         // Use SQL Server for development
         options.UseSqlServer(connectionString);
@@ -137,6 +146,10 @@ builder.Services.AddDbContext<SocialMediaDbContext>(options =>
             warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.MultipleCollectionIncludeWarning);
             warnings.Ignore(SqlServerEventId.SavepointsDisabledBecauseOfMARS);
         });
+    }
+    else
+    {
+        throw new InvalidOperationException("Database connection string is required. Please set DATABASE_URL environment variable or DefaultConnection in appsettings.");
     }
     
     // Add logging for debugging in development only

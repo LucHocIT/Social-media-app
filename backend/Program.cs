@@ -37,15 +37,41 @@ if (string.IsNullOrEmpty(connectionString))
     connectionString = Environment.GetEnvironmentVariable("DATABASE_URL");
 }
 
+// If still empty, try to build from individual env vars (for development)
+if (string.IsNullOrEmpty(connectionString))
+{
+    var host = Environment.GetEnvironmentVariable("DB_HOST");
+    var database = Environment.GetEnvironmentVariable("DB_DATABASE");
+    var username = Environment.GetEnvironmentVariable("DB_USER");
+    var password = Environment.GetEnvironmentVariable("DB_PASSWORD");
+    
+    if (!string.IsNullOrEmpty(host) && !string.IsNullOrEmpty(database))
+    {
+        connectionString = $"Host={host};Database={database};Username={username};Password={password};";
+    }
+}
+
 if (!string.IsNullOrEmpty(connectionString) && (connectionString.Contains("postgres") || connectionString.Contains("postgresql")))
 {
     // Register NpgsqlDataSource for better connection pooling
-    var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-    builder.Services.AddSingleton(dataSourceBuilder.Build());
+    try
+    {
+        var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
+        builder.Services.AddSingleton(dataSourceBuilder.Build());
+    }
+    catch (Exception ex)
+    {
+        throw new InvalidOperationException($"Invalid PostgreSQL connection string format: {ex.Message}");
+    }
+}
+else if (!string.IsNullOrEmpty(connectionString))
+{
+    // For SQL Server connections in development
+    Console.WriteLine("Using SQL Server connection for development");
 }
 else
 {
-    throw new InvalidOperationException("PostgreSQL connection string is required. Please set DATABASE_URL environment variable or DefaultConnection in appsettings.");
+    throw new InvalidOperationException("Database connection string is required. Please set DATABASE_URL environment variable or configure DefaultConnection in appsettings.");
 }
 
 // Add services to the container.

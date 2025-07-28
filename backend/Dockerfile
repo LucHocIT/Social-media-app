@@ -9,6 +9,8 @@ WORKDIR /src
 COPY ["SocialApp.csproj", "."]
 RUN dotnet restore "SocialApp.csproj"
 COPY . .
+# Copy .env file if it exists
+COPY [".env", ".env"]
 WORKDIR "/src"
 RUN dotnet build "SocialApp.csproj" -c Release -o /app/build
 

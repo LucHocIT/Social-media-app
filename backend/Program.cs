@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore.SqlServer.Diagnostics.Internal;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Collections;
 using Polly;
 using Polly.Extensions.Http;
 using SocialApp.Models;
@@ -35,6 +36,18 @@ builder.Configuration.AddEnvironmentVariables();
 // Debug: Log environment check
 Console.WriteLine($"Environment: {builder.Environment.EnvironmentName}");
 Console.WriteLine($"DATABASE_URL exists: {!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DATABASE_URL"))}");
+Console.WriteLine($"DB_CONNECTION_STRING exists: {!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DB_CONNECTION_STRING"))}");
+
+// Debug: List all environment variables starting with DB
+Console.WriteLine("Environment variables starting with DB:");
+foreach (DictionaryEntry env in Environment.GetEnvironmentVariables())
+{
+    var key = env.Key?.ToString();
+    if (key != null && key.StartsWith("DB", StringComparison.OrdinalIgnoreCase))
+    {
+        Console.WriteLine($"  {key}: {(env.Value?.ToString()?.Length > 0 ? "SET" : "EMPTY")}");
+    }
+}
 
 // Function to convert PostgreSQL URL to connection string
 string ConvertPostgresUrlToConnectionString(string databaseUrl)
@@ -58,6 +71,8 @@ string ConvertPostgresUrlToConnectionString(string databaseUrl)
         
         Console.WriteLine($"Parsed connection - Host: {host}, Port: {port}, Database: {database}, Username: {username}");
         Console.WriteLine($"Password length: {password.Length} characters");
+        Console.WriteLine($"Password first 4 chars: {password.Substring(0, Math.Min(4, password.Length))}");
+        Console.WriteLine($"Password last 4 chars: {password.Substring(Math.Max(0, password.Length - 4))}");
         Console.WriteLine($"Connection string built successfully");
         
         return connectionString;
@@ -76,26 +91,35 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 // Try to get connection string from environment variable if not found in config
 if (string.IsNullOrEmpty(connectionString))
 {
+    // Try DATABASE_URL first
     var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
+    
+    // If DATABASE_URL not found, try DB_CONNECTION_STRING
+    if (string.IsNullOrEmpty(databaseUrl))
+    {
+        databaseUrl = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+        Console.WriteLine($"Trying DB_CONNECTION_STRING: {!string.IsNullOrEmpty(databaseUrl)}");
+    }
+    
     if (!string.IsNullOrEmpty(databaseUrl))
     {
-        Console.WriteLine($"Raw DATABASE_URL: {databaseUrl.Substring(0, Math.Min(50, databaseUrl.Length))}...");
+        Console.WriteLine($"Found connection string from environment variable");
         
         if (databaseUrl.StartsWith("postgresql://") || databaseUrl.StartsWith("postgres://"))
         {
             connectionString = ConvertPostgresUrlToConnectionString(databaseUrl);
             Console.WriteLine("Converted DATABASE_URL to connection string format");
-            Console.WriteLine($"Final connection string: {connectionString.Substring(0, Math.Min(100, connectionString.Length))}...");
         }
         else
         {
             connectionString = databaseUrl;
-            Console.WriteLine("Using DATABASE_URL as-is");
+            Console.WriteLine("Using connection string as-is");
         }
     }
     else
     {
-        Console.WriteLine("WARNING: DATABASE_URL environment variable is empty or not set!");
+        Console.WriteLine("WARNING: No database connection string environment variable found!");
+        Console.WriteLine("Checked: DATABASE_URL, DB_CONNECTION_STRING");
     }
 }
 
@@ -302,8 +326,8 @@ builder.Services.AddScoped<IMessageReactionService, MessageReactionService>();
 // Notification services
 builder.Services.AddScoped<SocialApp.Services.Notification.INotificationService, SocialApp.Services.Notification.NotificationService>();
 
-// User presence service - can be disabled via configuration
-var enableUserPresence = builder.Configuration.GetValue("EnableUserPresence", true);
+// User presence service - temporarily disabled for debugging
+var enableUserPresence = builder.Configuration.GetValue("EnableUserPresence", false); // Changed to false
 if (enableUserPresence)
 {
     builder.Services.AddHostedService<UserPresenceService>();
@@ -311,7 +335,7 @@ if (enableUserPresence)
 else
 {
     var logger = LoggerFactory.Create(builder => builder.AddConsole()).CreateLogger("Program");
-    logger.LogInformation("UserPresenceService is disabled via configuration");
+    logger.LogInformation("UserPresenceService is disabled for debugging database connection");
 }
 
 // SignalR

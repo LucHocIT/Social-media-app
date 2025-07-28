@@ -195,13 +195,21 @@ builder.Services.AddCors(options =>
                 "https://localhost:3000",
                 "http://frontend:80",
                 "http://host.docker.internal:3000",
-                "https://socailapp-j7s9.onrender.com",
-                "https://socialapp-backend.onrender.com",
-                "https://socialapp-frontend.onrender.com"
+                "https://social-media-app-dmfz.onrender.com",
+                "https://socailapp-frontend-hwzc.onrender.com"
             )
             .AllowAnyMethod()
             .AllowAnyHeader()
-            .AllowCredentials()); // Important for SignalR
+            .AllowCredentials() // Important for SignalR
+            .SetPreflightMaxAge(TimeSpan.FromMinutes(10))); // Cache preflight for 10 minutes
+    
+    // Add a more permissive policy for production debugging (use carefully)
+    options.AddPolicy("DevelopmentCors",
+        builder => builder
+            .SetIsOriginAllowed(origin => true) // Allow all origins in development
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials());
 });
 
 // DbContext
@@ -426,9 +434,46 @@ if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI(c => c.SwaggerEndpoint("/swagger/v1/swagger.json", "Social App API v1"));
+    // Use more permissive CORS in development
+    app.UseCors("DevelopmentCors");
+}
+else
+{
+    // Use strict CORS in production
+    app.UseCors("AllowFrontend");
 }
 
-app.UseCors("AllowFrontend");
+// Add CORS headers manually as fallback
+app.Use(async (context, next) =>
+{
+    var origin = context.Request.Headers["Origin"].FirstOrDefault();
+    if (!string.IsNullOrEmpty(origin))
+    {
+        var allowedOrigins = new[]
+        {
+            "http://localhost:3000",
+            "https://localhost:3000", 
+            "https://socailapp-frontend-hwzc.onrender.com"
+        };
+        
+        if (allowedOrigins.Contains(origin))
+        {
+            context.Response.Headers["Access-Control-Allow-Origin"] = origin;
+            context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
+            context.Response.Headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS";
+            context.Response.Headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Requested-With";
+        }
+    }
+    
+    // Handle preflight requests
+    if (context.Request.Method == "OPTIONS")
+    {
+        context.Response.StatusCode = 200;
+        return;
+    }
+    
+    await next();
+});
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();

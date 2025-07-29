@@ -157,7 +157,10 @@ builder.Services.AddCors(options =>
                 "http://frontend:80",
                 "http://host.docker.internal:3000",
                 "https://social-media-app-dmfz.onrender.com",
-                "https://socailapp-frontend-hwzc.onrender.com"
+                "https://socailapp-frontend-hwzc.onrender.com",
+                "https://social-app-frontend-hwzc.onrender.com",
+                "https://socailapp-frontend.onrender.com",
+                "https://social-app-frontend.onrender.com"
             )
             .AllowAnyMethod()
             .AllowAnyHeader()
@@ -168,6 +171,17 @@ builder.Services.AddCors(options =>
     options.AddPolicy("DevelopmentCors",
         builder => builder
             .SetIsOriginAllowed(origin => true) // Allow all origins in development
+            .AllowAnyMethod()
+            .AllowAnyHeader()
+            .AllowCredentials());
+            
+    // Temporary debug policy - REMOVE in production
+    options.AddPolicy("DebugCors",
+        builder => builder
+            .SetIsOriginAllowed(origin => {
+                Console.WriteLine($"CORS check for origin: {origin}");
+                return true; // Allow all for now
+            })
             .AllowAnyMethod()
             .AllowAnyHeader()
             .AllowCredentials());
@@ -390,8 +404,8 @@ if (app.Environment.IsDevelopment())
 }
 else
 {
-    // Use strict CORS in production
-    app.UseCors("AllowFrontend");
+    // Use debug CORS temporarily in production
+    app.UseCors("DebugCors");
 }
 
 // Add CORS headers manually as fallback
@@ -404,7 +418,10 @@ app.Use(async (context, next) =>
         {
             "http://localhost:3000",
             "https://localhost:3000", 
-            "https://socailapp-frontend-hwzc.onrender.com"
+            "https://socailapp-frontend-hwzc.onrender.com",
+            "https://social-app-frontend-hwzc.onrender.com",
+            "https://socailapp-frontend.onrender.com",
+            "https://social-app-frontend.onrender.com"
         };
         
         if (allowedOrigins.Contains(origin))

@@ -180,7 +180,14 @@ builder.Services.AddCors(options =>
         builder => builder
             .SetIsOriginAllowed(origin => {
                 Console.WriteLine($"CORS check for origin: {origin}");
-                return true; // Allow all for now
+                // Allow any .onrender.com domain for now
+                if (origin?.Contains(".onrender.com") == true || origin?.Contains("localhost") == true)
+                {
+                    Console.WriteLine($"CORS ALLOWED for origin: {origin}");
+                    return true;
+                }
+                Console.WriteLine($"CORS DENIED for origin: {origin}");
+                return false;
             })
             .AllowAnyMethod()
             .AllowAnyHeader()
@@ -417,14 +424,14 @@ app.Use(async (context, next) =>
         var allowedOrigins = new[]
         {
             "http://localhost:3000",
-            "https://localhost:3000", 
-            "https://socailapp-frontend-hwzc.onrender.com",
-            "https://social-app-frontend-hwzc.onrender.com",
-            "https://socailapp-frontend.onrender.com",
-            "https://social-app-frontend.onrender.com"
+            "https://localhost:3000"
         };
         
-        if (allowedOrigins.Contains(origin))
+        // Check if origin is allowed
+        var isAllowed = allowedOrigins.Contains(origin) || 
+                       (origin?.Contains(".onrender.com") == true);
+        
+        if (isAllowed)
         {
             context.Response.Headers["Access-Control-Allow-Origin"] = origin;
             context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
